@@ -14,11 +14,6 @@ interface AffixResult {
   affixLength: number;   // Length of the affix
 }
 
-enum DisplayMode {
-  ALL = 'all',
-  PREFIXES_ONLY = 'prefixes',
-  SUFFIXES_ONLY = 'suffixes'
-}
 
 // ==========================================================
 // SUB-COMPONENTS
@@ -244,7 +239,6 @@ const InputVisualization: React.FC<{
 
 const WordAnalyzer: React.FC = () => {
   const [input, setInput] = useState<string>('');
-  const [displayMode, setDisplayMode] = useState<DisplayMode>(DisplayMode.ALL);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [debouncedInput, setDebouncedInput] = useState<string>('');
   const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -316,9 +310,6 @@ const WordAnalyzer: React.FC = () => {
     };
   }, [debouncedInput]);
 
-  const showPrefixes = displayMode === DisplayMode.ALL || displayMode === DisplayMode.PREFIXES_ONLY;
-  const showSuffixes = displayMode === DisplayMode.ALL || displayMode === DisplayMode.SUFFIXES_ONLY;
-
   return (
     <div className="word-analyzer">
       {/* Header */}
@@ -355,28 +346,6 @@ const WordAnalyzer: React.FC = () => {
           )}
         </div>
 
-        {/* Filter buttons */}
-        <div className="filter-buttons">
-          <button
-            className={`filter-btn ${displayMode === DisplayMode.ALL ? 'active' : ''}`}
-            onClick={() => setDisplayMode(DisplayMode.ALL)}
-          >
-            All ({results.totalCombinations})
-          </button>
-          <button
-            className={`filter-btn ${displayMode === DisplayMode.PREFIXES_ONLY ? 'active' : ''}`}
-            onClick={() => setDisplayMode(DisplayMode.PREFIXES_ONLY)}
-          >
-            Prefixes ({results.prefixes.length})
-          </button>
-          <button
-            className={`filter-btn ${displayMode === DisplayMode.SUFFIXES_ONLY ? 'active' : ''}`}
-            onClick={() => setDisplayMode(DisplayMode.SUFFIXES_ONLY)}
-          >
-            Suffixes ({results.suffixes.length})
-          </button>
-        </div>
-
         {/* Stats */}
         <StatsSummary
           inputLength={debouncedInput.length}
@@ -400,7 +369,7 @@ const WordAnalyzer: React.FC = () => {
       <div className="results-section">
         <div className="affix-columns">
           {/* Prefixes Column */}
-          <div className={`affix-column ${!showPrefixes ? 'hidden' : ''}`}>
+          <div className={`affix-column`}>
             <div className="column-header">
               <span className="column-icon">↪</span>
               <span className="column-title">Prefixes</span>
@@ -417,12 +386,10 @@ const WordAnalyzer: React.FC = () => {
           </div>
 
           {/* Divider */}
-          {displayMode === DisplayMode.ALL && results.totalCombinations > 0 && (
-            <div className="affix-divider" />
-          )}
+          <div className="affix-divider" />
 
           {/* Suffixes Column */}
-          <div className={`affix-column ${!showSuffixes ? 'hidden' : ''}`}>
+          <div className={`affix-column`}>
             <div className="column-header">
               <span className="column-icon">↩</span>
               <span className="column-title">Suffixes</span>
