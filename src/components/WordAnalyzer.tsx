@@ -44,8 +44,6 @@ const AffixChip: React.FC<{
             <span className="affix-highlight">{prefixPart}</span>
             <span className="affix-base">{wordPart}</span>
           </span>
-          <span className="affix-arrow">→</span>
-          <span className="affix-word">{combinedWord}</span>
         </>
       ) : (
         <>
@@ -53,8 +51,6 @@ const AffixChip: React.FC<{
             <span className="affix-base">{wordPart}</span>
             <span className="affix-highlight">{suffixPart}</span>
           </span>
-          <span className="affix-arrow">→</span>
-          <span className="affix-word">{combinedWord}</span>
         </>
       )}
     </div>
