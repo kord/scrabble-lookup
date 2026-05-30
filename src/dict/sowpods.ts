@@ -1,6 +1,6 @@
 // Wordlist pilfered from https://github.com/kamilmielnik/scrabble-solver/blob/master/packages/word-lists/src/languages/english.ts
 
-export const sowpodsWords =
+export const SOWPODS_WORDS =
     [
         "aa",
         "aah",

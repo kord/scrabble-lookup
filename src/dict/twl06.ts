@@ -1,6 +1,6 @@
 // Wordlist pilfered from https://github.com/kamilmielnik/scrabble-solver/blob/master/packages/word-lists/src/languages/english.ts
 
-export const twl06 =
+export const TWL_06_WORDS =
     [
         "aa",
         "aah",

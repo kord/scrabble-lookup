@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { BiDirectionalPrefixDictionary } from '../dict/dict';
-import "../css/WordAnalyzer.css";
 import { SowpodsDictionary } from '../dict/scrabbledicts';
+import "../css/WordAnalyzer.css";
 
 const dictionary = SowpodsDictionary;
 
@@ -9,11 +8,15 @@ const dictionary = SowpodsDictionary;
 // TYPE DEFINITIONS
 // ==========================================================
 interface AffixResult {
-  affix: string;         // The prefix or suffix text
-  combinedWord: string;  // The full dictionary word formed
-  affixLength: number;   // Length of the affix
+  affix: string;
+  combinedWord: string;
+  affixLength: number;
 }
 
+interface AnagramResult {
+  word: string;
+  blanks: number;
+}
 
 // ==========================================================
 // SUB-COMPONENTS
@@ -34,19 +37,15 @@ const AffixChip: React.FC<{
       title={`${isPrefix ? 'Prefix' : 'Suffix'}: "${affix}" → "${combinedWord}"`}
     >
       {isPrefix ? (
-        <>
-          <span className="affix-preview">
-            <span className="affix-highlight">{prefixPart}</span>
-            <span className="affix-base">{wordPart}</span>
-          </span>
-        </>
+        <span className="affix-preview">
+          <span className="affix-highlight">{prefixPart}</span>
+          <span className="affix-base">{wordPart}</span>
+        </span>
       ) : (
-        <>
-          <span className="affix-preview">
-            <span className="affix-base">{wordPart}</span>
-            <span className="affix-highlight">{suffixPart}</span>
-          </span>
-        </>
+        <span className="affix-preview">
+          <span className="affix-base">{wordPart}</span>
+          <span className="affix-highlight">{suffixPart}</span>
+        </span>
       )}
     </div>
   );
@@ -58,10 +57,13 @@ const StatsSummary: React.FC<{
   suffixCount: number;
   totalCombinations: number;
   wordExists: boolean;
-}> = ({ inputLength, prefixCount, suffixCount, totalCombinations, wordExists }) => {
+  blankCount: number;
+  activeTab: 'affixes' | 'anagrams';
+  anagramCount: number;
+}> = ({ inputLength, prefixCount, suffixCount, totalCombinations, wordExists, blankCount, activeTab, anagramCount }) => {
   return (
     <div className="stats-summary">
-      {inputLength > 0 && (
+      {inputLength > 0 && activeTab === 'affixes' && (
         <>
           <span className="stat-divider">|</span>
           <span className="stat-item">
@@ -81,22 +83,46 @@ const StatsSummary: React.FC<{
           </span>
           <span className="stat-divider">|</span>
           <span className="stat-item">
-            In dictionary: <strong>{wordExists ? '✅ Yes' : '❌ No'}</strong>
+            In dict: <strong>{wordExists ? '✅ Yes' : '❌ No'}</strong>
+          </span>
+        </>
+      )}
+      {inputLength > 0 && activeTab === 'anagrams' && (
+        <>
+          <span className="stat-divider">|</span>
+          <span className="stat-item">
+            Length: <strong>{inputLength}</strong>
+          </span>
+          <span className="stat-divider">|</span>
+          <span className="stat-item">
+            Blanks: <strong>{blankCount > 0 ? `?×${blankCount}` : '0'}</strong>
+          </span>
+          <span className="stat-divider">|</span>
+          <span className="stat-item">
+            Matches: <strong>{anagramCount}</strong>
           </span>
         </>
       )}
       {inputLength === 0 && (
-        <span className="stat-item hint">Type a word to see what prefixes and suffixes can be added</span>
+        <span className="stat-item hint">
+          Type a word to search — use <code>?</code> for blank tiles
+        </span>
       )}
     </div>
   );
 };
 
-const EmptyState: React.FC<{ type: 'prefixes' | 'suffixes' }> = ({ type }) => {
+const EmptyState: React.FC<{ type: 'prefixes' | 'suffixes' | 'anagrams'; hasBlanks?: boolean }> = ({ type, hasBlanks }) => {
+  const icons: Record<string, string> = { prefixes: '↪', suffixes: '↩', anagrams: '🔄' };
+  const messages: Record<string, string> = {
+    prefixes: 'No valid prefixes found',
+    suffixes: 'No valid suffixes found',
+    anagrams: hasBlanks ? 'No words match that pattern' : 'No exact anagrams found',
+  };
   return (
     <div className="empty-state">
-      <span className="empty-icon">{type === 'prefixes' ? '↪' : '↩'}</span>
-      <span className="empty-text">No valid {type} found</span>
+      <span className="empty-icon">{icons[type]}</span>
+      <span className="empty-text">{messages[type]}</span>
     </div>
   );
 };
@@ -115,7 +141,6 @@ const GroupedAffixList: React.FC<{
   isPrefix: boolean;
   isLoading?: boolean;
 }> = ({ items, isPrefix, isLoading = false }) => {
-  // Group by affix length
   const grouped = useMemo(() => {
     const groups: { [key: number]: AffixResult[] } = {};
     items.forEach(item => {
@@ -157,9 +182,52 @@ const GroupedAffixList: React.FC<{
   );
 };
 
-// ==========================================================
-// VISUALIZATION: Show how input breaks into affixes
-// ==========================================================
+const AnagramList: React.FC<{
+  items: AnagramResult[];
+  isLoading?: boolean;
+  hasBlanks?: boolean;
+}> = ({ items, isLoading = false, hasBlanks = false }) => {
+  if (isLoading) return <LoadingSpinner />;
+  if (items.length === 0) return <EmptyState type="anagrams" hasBlanks={hasBlanks} />;
+
+  // Group by blank count (exact vs wildcard)
+  const exactMatches = items.filter(i => i.blanks === 0);
+  const wildcardMatches = items.filter(i => i.blanks > 0);
+
+  return (
+    <div className="anagram-list-container">
+      {exactMatches.length > 0 && (
+        <div className="anagram-group">
+          <div className="anagram-group-header">
+            Exact matches ({exactMatches.length})
+          </div>
+          <div className="anagram-group-content">
+            {exactMatches.map(item => (
+              <div key={item.word} className="anagram-chip exact">
+                {item.word}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {wildcardMatches.length > 0 && (
+        <div className="anagram-group">
+          <div className="anagram-group-header">
+            Wildcard matches ({wildcardMatches.length})
+          </div>
+          <div className="anagram-group-content">
+            {wildcardMatches.map(item => (
+              <div key={item.word} className="anagram-chip wildcard">
+                {item.word}
+                <span className="blank-badge">?{item.blanks}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const InputVisualization: React.FC<{
   input: string;
@@ -171,18 +239,14 @@ const InputVisualization: React.FC<{
   const prefixChars = new Set<number>();
   const suffixChars = new Set<number>();
 
-  // Mark which character indices are part of a prefix
   prefixes.forEach(p => {
-    const prefixText = p.affix;
-    for (let i = 0; i < prefixText.length; i++) {
+    for (let i = 0; i < p.affix.length; i++) {
       prefixChars.add(i);
     }
   });
 
-  // Mark which character indices are part of a suffix (counting from end)
   suffixes.forEach(s => {
-    const suffixText = s.affix;
-    for (let i = 0; i < suffixText.length; i++) {
+    for (let i = 0; i < s.affix.length; i++) {
       suffixChars.add(cleanInput.length - 1 - i);
     }
   });
@@ -194,17 +258,13 @@ const InputVisualization: React.FC<{
           <span className="highlight-label">Your word:</span>
           <div className="highlight-text">
             {input.split('').map((char, index) => {
-              const isPrefix = prefixChars.has(index);
-              const isSuffix = suffixChars.has(index);
+              const isPref = prefixChars.has(index);
+              const isSuf = suffixChars.has(index);
 
               let className = 'highlight-char';
-              if (isPrefix && isSuffix) {
-                className += ' both';
-              } else if (isPrefix) {
-                className += ' prefix';
-              } else if (isSuffix) {
-                className += ' suffix';
-              }
+              if (isPref && isSuf) className += ' both';
+              else if (isPref) className += ' prefix';
+              else if (isSuf) className += ' suffix';
 
               return (
                 <span key={index} className={className}>
@@ -233,6 +293,20 @@ const InputVisualization: React.FC<{
   );
 };
 
+const BlankHelp: React.FC = () => {
+  return (
+    <div className="blank-help">
+      <div className="blank-help-title">💡 Blank tile tips</div>
+      <ul>
+        <li>Use <code>?</code> for a blank tile (matches any letter)</li>
+        <li><code>c?t</code> → finds <em>cat</em>, <em>cot</em>, <em>cut</em>, etc.</li>
+        <li><code>??t</code> → finds all 3-letter words ending in <em>t</em></li>
+        <li><code>l?st?n</code> → finds <em>listener</em>, <em>listening</em></li>
+      </ul>
+    </div>
+  );
+};
+
 // ==========================================================
 // MAIN COMPONENT
 // ==========================================================
@@ -241,7 +315,10 @@ const WordAnalyzer: React.FC = () => {
   const [input, setInput] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [debouncedInput, setDebouncedInput] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'affixes' | 'anagrams'>('affixes');
   const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const blankCount = (input.match(/\?/g) || []).length;
 
   // Handle input change with debouncing
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,8 +345,8 @@ const WordAnalyzer: React.FC = () => {
     };
   }, []);
 
-  // Compute results from dictionary
-  const results = useMemo(() => {
+  // Compute affix results from dictionary
+  const affixResults = useMemo(() => {
     if (!debouncedInput || debouncedInput.trim().length === 0) {
       return {
         prefixes: [] as AffixResult[],
@@ -281,11 +358,8 @@ const WordAnalyzer: React.FC = () => {
 
     const cleanInput = debouncedInput.toLowerCase().trim();
 
-    // Check if the input itself is in the dictionary
     const wordExists = dictionary.check(cleanInput);
 
-    // Find prefixes (words we can prepend to the input)
-    // e.g., "un" + "help" = "unhelp" → prefix "un"
     const prefixStrings = dictionary.findValidPrefixes(cleanInput);
     const prefixes: AffixResult[] = prefixStrings.map(prefix => ({
       affix: prefix,
@@ -293,8 +367,6 @@ const WordAnalyzer: React.FC = () => {
       affixLength: prefix.length
     }));
 
-    // Find suffixes (words we can append to the input)
-    // e.g., "help" + "ful" = "helpful" → suffix "ful"
     const suffixStrings = dictionary.findValidSuffixes(cleanInput);
     const suffixes: AffixResult[] = suffixStrings.map(suffix => ({
       affix: suffix,
@@ -310,13 +382,37 @@ const WordAnalyzer: React.FC = () => {
     };
   }, [debouncedInput]);
 
+  // Compute anagram results
+  const anagramResults = useMemo(() => {
+    if (!debouncedInput || debouncedInput.trim().length === 0) {
+      return [] as AnagramResult[];
+    }
+
+    const cleanInput = debouncedInput.toLowerCase().trim();
+
+    // Don't search if input has characters other than letters and ?
+    if (!/^[a-z?]+$/.test(cleanInput)) return [];
+
+    return dictionary.findAnagrams(cleanInput);
+  }, [debouncedInput]);
+
+  const clearInput = useCallback(() => {
+    setInput('');
+    setDebouncedInput('');
+  }, []);
+
   return (
     <div className="word-analyzer">
       {/* Header */}
       <div className="analyzer-header">
-        <h1>🔤 Word Builder</h1>
+        <h1>🔤 Scrabble Lookup</h1>
         <p className="subtitle">
-          See what prefixes and suffixes can be added before and after your word
+          Word affix analyzer &amp; anagram finder
+          {blankCount > 0 && (
+            <span className="blank-indicator">
+              {' '}· {blankCount} blank{blankCount > 1 ? 's' : ''} (<code>?</code>)
+            </span>
+          )}
         </p>
       </div>
 
@@ -327,7 +423,7 @@ const WordAnalyzer: React.FC = () => {
             type="text"
             value={input}
             onChange={handleInputChange}
-            placeholder="Type a word (e.g., help, act, test)..."
+            placeholder="Type a word... use ? for blanks"
             className="word-input"
             autoFocus
             spellCheck={false}
@@ -335,10 +431,7 @@ const WordAnalyzer: React.FC = () => {
           {input && (
             <button
               className="clear-button"
-              onClick={() => {
-                setInput('');
-                setDebouncedInput('');
-              }}
+              onClick={clearInput}
               title="Clear input"
             >
               ✕
@@ -346,66 +439,136 @@ const WordAnalyzer: React.FC = () => {
           )}
         </div>
 
+        {/* Tab bar */}
+        <div className="tab-bar">
+          <button
+            className={`tab-button ${activeTab === 'affixes' ? 'active' : ''}`}
+            onClick={() => setActiveTab('affixes')}
+          >
+            🔤 Affixes
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'anagrams' ? 'active' : ''}`}
+            onClick={() => setActiveTab('anagrams')}
+          >
+            🔄 Anagram Finder
+            {blankCount > 0 && <span className="badge">?{blankCount}</span>}
+          </button>
+        </div>
+
         {/* Stats */}
-        <StatsSummary
-          inputLength={debouncedInput.length}
-          prefixCount={results.prefixes.length}
-          suffixCount={results.suffixes.length}
-          totalCombinations={results.totalCombinations}
-          wordExists={results.wordExists}
-        />
+        {debouncedInput && (
+          <StatsSummary
+            inputLength={debouncedInput.length}
+            prefixCount={affixResults.prefixes.length}
+            suffixCount={affixResults.suffixes.length}
+            totalCombinations={affixResults.totalCombinations}
+            wordExists={affixResults.wordExists}
+            blankCount={blankCount}
+            activeTab={activeTab}
+            anagramCount={anagramResults.length}
+          />
+        )}
       </div>
 
-      {/* Visualization */}
-      {/* {debouncedInput.length > 0 && (
-        <InputVisualization
-          input={input}
-          prefixes={results.prefixes}
-          suffixes={results.suffixes}
-        />
-      )} */}
+      {/* Affix Tab Content */}
+      {activeTab === 'affixes' && (
+        <>
+          {debouncedInput.length > 0 && (
+            <InputVisualization
+              input={input}
+              prefixes={affixResults.prefixes}
+              suffixes={affixResults.suffixes}
+            />
+          )}
 
-      {/* Results Section */}
-      <div className="results-section">
-        <div className="affix-columns">
-          {/* Prefixes Column */}
-          <div className={`affix-column`}>
-            <div className="column-header">
-              <span className="column-icon">↪</span>
-              <span className="column-title">Prefixes</span>
-              <span className="column-subtitle">Add before</span>
-              <span className="column-count">{results.prefixes.length}</span>
-            </div>
-            <div className="column-body">
-              <GroupedAffixList
-                items={results.prefixes}
-                isPrefix={true}
-                isLoading={isAnalyzing}
-              />
+          <div className="results-section">
+            <div className="affix-columns">
+              {/* Prefixes Column */}
+              <div className="affix-column">
+                <div className="column-header">
+                  <span className="column-icon">↪</span>
+                  <span className="column-title">Prefixes</span>
+                  <span className="column-subtitle">Add before</span>
+                  <span className="column-count">{affixResults.prefixes.length}</span>
+                </div>
+                <div className="column-body">
+                  <GroupedAffixList
+                    items={affixResults.prefixes}
+                    isPrefix={true}
+                    isLoading={isAnalyzing}
+                  />
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="affix-divider" />
+
+              {/* Suffixes Column */}
+              <div className="affix-column">
+                <div className="column-header">
+                  <span className="column-icon">↩</span>
+                  <span className="column-title">Suffixes</span>
+                  <span className="column-subtitle">Add after</span>
+                  <span className="column-count">{affixResults.suffixes.length}</span>
+                </div>
+                <div className="column-body">
+                  <GroupedAffixList
+                    items={affixResults.suffixes}
+                    isPrefix={false}
+                    isLoading={isAnalyzing}
+                  />
+                </div>
+              </div>
             </div>
           </div>
+        </>
+      )}
 
-          {/* Divider */}
-          <div className="affix-divider" />
+      {/* Anagram Tab Content */}
+      {activeTab === 'anagrams' && (
+        <div className="results-section">
+          <div className="anagram-results-container">
+            {/* Blank help shown when input has ? */}
+            {blankCount > 0 && (
+              <BlankHelp />
+            )}
 
-          {/* Suffixes Column */}
-          <div className={`affix-column`}>
-            <div className="column-header">
-              <span className="column-icon">↩</span>
-              <span className="column-title">Suffixes</span>
-              <span className="column-subtitle">Add after</span>
-              <span className="column-count">{results.suffixes.length}</span>
-            </div>
-            <div className="column-body">
-              <GroupedAffixList
-                items={results.suffixes}
-                isPrefix={false}
-                isLoading={isAnalyzing}
-              />
+            {/* Main anagram list */}
+            <div className="anagram-column">
+              <div className="column-header">
+                <span className="column-icon">🔄</span>
+                <span className="column-title">Anagrams</span>
+                <span className="column-subtitle">
+                  {blankCount > 0 ? 'Wildcard matches' : 'Exact anagrams'}
+                </span>
+                <span className="column-count">{anagramResults.length}</span>
+              </div>
+              <div className="column-body">
+                <AnagramList
+                  items={anagramResults}
+                  isLoading={isAnalyzing}
+                  hasBlanks={blankCount > 0}
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Empty state when no input */}
+      {!debouncedInput && (
+        <div className="welcome-section">
+          <div className="welcome-icon">🔍</div>
+          <p className="welcome-text">
+            Type a word above to see its valid affixes or find anagrams
+          </p>
+          <div className="welcome-examples">
+            <p>Try: <code>help</code>, <code>act</code>, <code>test</code>, <code>listen</code></p>
+            <p>Use <code>?</code> for blanks: <code>c?t</code>, <code>??t</code>, <code>l?st?n</code></p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
