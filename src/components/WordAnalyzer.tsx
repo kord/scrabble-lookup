@@ -401,6 +401,11 @@ const WordAnalyzer: React.FC = () => {
     setDebouncedInput('');
   }, []);
 
+  // Toggle between tabs — single click flips
+  const toggleTab = useCallback(() => {
+    setActiveTab(prev => prev === 'affixes' ? 'anagrams' : 'affixes');
+  }, []);
+
   return (
     <div className="word-analyzer">
       {/* Header */}
@@ -439,21 +444,15 @@ const WordAnalyzer: React.FC = () => {
           )}
         </div>
 
-        {/* Tab bar */}
-        <div className="tab-bar">
-          <button
-            className={`tab-button ${activeTab === 'affixes' ? 'active' : ''}`}
-            onClick={() => setActiveTab('affixes')}
-          >
-            🔤 Affixes
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'anagrams' ? 'active' : ''}`}
-            onClick={() => setActiveTab('anagrams')}
-          >
-            🔄 Anagram Finder
-            {blankCount > 0 && <span className="badge">?{blankCount}</span>}
-          </button>
+        {/* Slider to toggle between Affixes and Anagram tabs */}
+        <div className="tab-slider-container" onClick={toggleTab} title="Click to switch mode">
+          <div className={`tab-slider-track ${activeTab === 'anagrams' ? 'anagram-active' : ''}`}>
+            <div className="tab-slider-thumb">
+              {/* {activeTab === 'affixes' ? '🔤' : '🔄'} */}
+            </div>
+            <span className="tab-slider-label affix-label">Affixes</span>
+            <span className="tab-slider-label anagram-label">Anagrams</span>
+          </div>
         </div>
 
         {/* Stats */}
