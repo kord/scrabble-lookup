@@ -24,6 +24,7 @@ class ScrabbleDictionary {
 
     constructor(words: string[]) {
         this.dict = new BiDirectionalPrefixDictionary(words);
+        this.dict.finalize();
         this.anagramEngine = new AnagramEngine();
         this.anagramEngine.build(words);
     }

@@ -1,19 +1,23 @@
-class TrieNode {
-    children: Map<string, TrieNode>;
-    isEndOfWord: boolean;
-
-    constructor() {
-        this.children = new Map<string, TrieNode>();
-        this.isEndOfWord = false;
-    }
-}
+/**
+ * BiDirectionalPrefixDictionary — Array-based version
+ * 
+ * Stores words in arrays organized by length:
+ *   - forwardWords[length] = string[]  (all words of that length, sorted)
+ *   - reverseWords[length] = string[]  (all words reversed, sorted by reversed form)
+ * 
+ * This allows efficient prefix and suffix lookup without a trie.
+ */
 
 export class BiDirectionalPrefixDictionary {
-    private forwardTrie: TrieNode;
+    private forwardWords: Map<number, string[]>;  // length → sorted words
+    private reverseWords: Map<number, string[]>;  // length → reversed words
+    private wordSet: Set<string>;
     public wordCount: number;
 
     constructor(wordlist: string[] = []) {
-        this.forwardTrie = new TrieNode();
+        this.forwardWords = new Map();
+        this.reverseWords = new Map();
+        this.wordSet = new Set();
         this.wordCount = 0;
         this.insertWords(wordlist);
     }
@@ -24,9 +28,6 @@ export class BiDirectionalPrefixDictionary {
         }
     }
 
-    /**
-     * Inserts a word into the dictionary
-     */
     insert(word: string): boolean {
         if (typeof word !== 'string' || word.trim().length === 0) {
             throw new Error('Word must be a non-empty string');
@@ -34,66 +35,70 @@ export class BiDirectionalPrefixDictionary {
 
         const normalizedWord = word.toLowerCase().trim();
 
-        if (this.check(normalizedWord)) {
+        if (this.wordSet.has(normalizedWord)) {
             return false;
         }
 
-        let currentNode = this.forwardTrie;
-        for (const char of normalizedWord) {
-            if (!currentNode.children.has(char)) {
-                currentNode.children.set(char, new TrieNode());
-            }
-            currentNode = currentNode.children.get(char)!;
-        }
+        this.wordSet.add(normalizedWord);
 
-        currentNode.isEndOfWord = true;
+        // Store in forward array by length
+        const len = normalizedWord.length;
+        if (!this.forwardWords.has(len)) {
+            this.forwardWords.set(len, []);
+        }
+        this.forwardWords.get(len)!.push(normalizedWord);
+
+        // Store reversed in reverse array by length
+        const reversed = normalizedWord.split('').reverse().join('');
+        if (!this.reverseWords.has(len)) {
+            this.reverseWords.set(len, []);
+        }
+        this.reverseWords.get(len)!.push(reversed);
+
         this.wordCount++;
         return true;
     }
 
     /**
-     * Checks if a word exists in the dictionary
+     * Must be called after all inserts to sort the arrays for binary search.
      */
+    finalize(): void {
+        for (const [len, words] of this.forwardWords) {
+            words.sort();
+            this.forwardWords.set(len, words);
+        }
+        for (const [len, words] of this.reverseWords) {
+            words.sort();
+            this.reverseWords.set(len, words);
+        }
+    }
+
     check(word: string): boolean {
         if (typeof word !== 'string' || word.trim().length === 0) {
             throw new Error('Word must be a non-empty string');
         }
-
-        const normalizedWord = word.toLowerCase().trim();
-        const node = this.traverseForward(normalizedWord);
-        return node !== null && node.isEndOfWord;
+        return this.wordSet.has(word.toLowerCase().trim());
     }
 
-    /**
-     * Gets the total number of words in the dictionary
-     */
     getWordCount(): number {
         return this.wordCount;
     }
 
-    /**
-     * Gets all words in the dictionary
-     */
     getAllWords(): string[] {
         const words: string[] = [];
-        this.collectWords(this.forwardTrie, '', words);
+        const sortedLengths = Array.from(this.forwardWords.keys()).sort((a, b) => a - b);
+        for (const len of sortedLengths) {
+            words.push(...this.forwardWords.get(len)!);
+        }
         return words;
     }
 
-    // =========================================================
-    // NEW METHODS: Finding prefixes and suffixes as extra chars
-    // =========================================================
-
     /**
-     * Finds all dictionary words that can be formed by PREPENDING a prefix
-     * to the given word. Returns the prefixes (extra chars added before).
+     * Finds all prefixes that can be prepended to the given word
+     * to form a valid dictionary word.
      * 
-     * Example: word="help", dictionary has "helpful", "helping", "helpless"
-     *   → finds words "helpful", "helping", "helpless" 
-     *   → returns prefixes ["ful", "ing", "less"]
-     * 
-     * @param word The base word to find prefix extensions for
-     * @returns Array of prefix strings that can be prepended to form valid words
+     * Uses the reverse-word arrays: a word ending with our input
+     * means the reversed word starts with the reversed input.
      */
     findValidPrefixes(word: string): string[] {
         if (typeof word !== 'string' || word.trim().length === 0) {
@@ -101,21 +106,23 @@ export class BiDirectionalPrefixDictionary {
         }
 
         const normalizedWord = word.toLowerCase().trim();
+        const reversedWord = normalizedWord.split('').reverse().join('');
         const prefixes: string[] = [];
 
-        // Find all dictionary words that END with the given word.
-        // To do this efficiently, we check if the word itself is a path in the trie,
-        // then look for any word that continues from there (those are words that START with our word)
-        // Wait - we need words that END with our word. Let's use a different approach.
+        // Search through lengths longer than our word
+        for (const [len, revWords] of this.reverseWords) {
+            if (len <= normalizedWord.length) continue;
 
-        // Approach: Search the entire trie for words that end with our input
-        // For each complete word in the dictionary, if it ends with our input,
-        // the prefix is the part before the input.
+            // We need reversed words that START with reversedWord
+            // Since revWords is sorted, binary search the range
+            const start = this.lowerBound(revWords, reversedWord);
+            const end = this.upperBound(revWords, this.nextPrefix(reversedWord));
 
-        const allWords = this.getAllWords();
-        for (const dictWord of allWords) {
-            if (dictWord.length > normalizedWord.length && dictWord.endsWith(normalizedWord)) {
-                const prefix = dictWord.slice(0, dictWord.length - normalizedWord.length);
+            for (let i = start; i < end; i++) {
+                const revDictWord = revWords[i];
+                // The forward version of this dictionary word
+                const forwardWord = revDictWord.split('').reverse().join('');
+                const prefix = forwardWord.slice(0, forwardWord.length - normalizedWord.length);
                 prefixes.push(prefix);
             }
         }
@@ -124,15 +131,11 @@ export class BiDirectionalPrefixDictionary {
     }
 
     /**
-     * Finds all dictionary words that can be formed by APPENDING a suffix
-     * to the given word. Returns the suffixes (extra chars added after).
+     * Finds all suffixes that can be appended to the given word
+     * to form a valid dictionary word.
      * 
-     * Example: word="help", dictionary has "helpful", "helping", "helpless"
-     *   → finds words "helpful", "helping", "helpless"
-     *   → returns suffixes ["ful", "ing", "less"]
-     * 
-     * @param word The base word to find suffix extensions for
-     * @returns Array of suffix strings that can be appended to form valid words
+     * Uses the forward-word arrays: a word starting with our input
+     * is a suffix candidate.
      */
     findValidSuffixes(word: string): string[] {
         if (typeof word !== 'string' || word.trim().length === 0) {
@@ -142,22 +145,17 @@ export class BiDirectionalPrefixDictionary {
         const normalizedWord = word.toLowerCase().trim();
         const suffixes: string[] = [];
 
-        // Traverse to the node representing our word
-        const wordNode = this.traverseForward(normalizedWord);
+        // Search through lengths longer than our word
+        for (const [len, words] of this.forwardWords) {
+            if (len <= normalizedWord.length) continue;
 
-        if (!wordNode) {
-            // The word itself isn't in the dictionary, so no words start with it
-            return [];
-        }
+            // We need forward words that START with normalizedWord
+            const start = this.lowerBound(words, normalizedWord);
+            const end = this.upperBound(words, this.nextPrefix(normalizedWord));
 
-        // Now collect all words that continue from this node (they all start with our word)
-        const completions: string[] = [];
-        this.collectWords(wordNode, normalizedWord, completions);
-
-        // For each completion, the suffix is what was added after our word
-        for (const completion of completions) {
-            if (completion.length > normalizedWord.length) {
-                const suffix = completion.slice(normalizedWord.length);
+            for (let i = start; i < end; i++) {
+                const dictWord = words[i];
+                const suffix = dictWord.slice(normalizedWord.length);
                 suffixes.push(suffix);
             }
         }
@@ -166,89 +164,140 @@ export class BiDirectionalPrefixDictionary {
     }
 
     /**
-     * Finds all dictionary words that can be formed by adding BOTH a prefix AND
-     * a suffix to the given word.
-     * 
-     * Example: word="help", dictionary has "unhelpful"
-     *   → prefix: "un", suffix: "ful", result: "un" + "help" + "ful" = "unhelpful"
-     * 
-     * @param word The base word to find affix combinations for
-     * @returns Array of {prefix, suffix, word} objects
+     * Finds all anagrams of the given letters (with ? wildcard support)
      */
-    findValidAffixCombinations(word: string): Array<{ prefix: string; suffix: string; word: string }> {
-        if (typeof word !== 'string' || word.trim().length === 0) {
-            throw new Error('Word must be a non-empty string');
+    findAnagrams(letters: string): Array<{ word: string; blanks: number }> {
+        if (typeof letters !== 'string') {
+            return [];
         }
 
-        const normalizedWord = word.toLowerCase().trim();
-        const combinations: Array<{ prefix: string; suffix: string; word: string }> = [];
+        const normalizedLetters = letters.toLowerCase().trim();
+        if (normalizedLetters.length === 0) return [];
+        if (!/^[a-z?]+$/.test(normalizedLetters)) return [];
 
-        const allWords = this.getAllWords();
-        for (const dictWord of allWords) {
-            if (dictWord.length > normalizedWord.length) {
-                const index = dictWord.indexOf(normalizedWord);
-                if (index > 0 && index + normalizedWord.length < dictWord.length) {
-                    const prefix = dictWord.slice(0, index);
-                    const suffix = dictWord.slice(index + normalizedWord.length);
-                    combinations.push({ prefix, suffix, word: dictWord });
-                }
+        const results: Array<{ word: string; blanks: number }> = [];
+
+        // Count available letters
+        const letterCount = this.countLetters(normalizedLetters);
+        const blankCount = normalizedLetters.split('?').length - 1;
+        const inputLength = normalizedLetters.length;
+
+        // Only check words of the same length
+        const candidateWords = this.forwardWords.get(inputLength);
+        if (!candidateWords) return results;
+
+        for (const dictWord of candidateWords) {
+            const usedBlanks = this.canFormWord(dictWord, letterCount, blankCount);
+            if (usedBlanks !== -1) {
+                results.push({ word: dictWord, blanks: usedBlanks });
             }
         }
 
-        return combinations;
+        return results;
     }
 
-    /**
-     * Gets all dictionary words that start with a given prefix
-     * (words where the prefix is prepended to something else)
-     */
+    // ======== Helper methods ========
+
+    private lowerBound(sortedArray: string[], target: string): number {
+        let lo = 0;
+        let hi = sortedArray.length;
+        while (lo < hi) {
+            const mid = Math.floor((lo + hi) / 2);
+            if (sortedArray[mid] < target) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    private upperBound(sortedArray: string[], target: string): number {
+        let lo = 0;
+        let hi = sortedArray.length;
+        while (lo < hi) {
+            const mid = Math.floor((lo + hi) / 2);
+            if (sortedArray[mid] <= target) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    private nextPrefix(s: string): string {
+        // Returns the string immediately after all strings starting with s
+        // in lexicographic order (e.g., "abc" → "abd")
+        const chars = s.split('');
+        for (let i = chars.length - 1; i >= 0; i--) {
+            if (chars[i] < 'z') {
+                chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1);
+                return chars.join('');
+            }
+        }
+        // All characters are 'z', return a sentinel past-z string
+        return s + 'z';
+    }
+
+    private countLetters(s: string): Map<string, number> {
+        const counts = new Map<string, number>();
+        for (const ch of s) {
+            if (ch === '?') continue;
+            counts.set(ch, (counts.get(ch) || 0) + 1);
+        }
+        return counts;
+    }
+
+    private canFormWord(word: string, letterCount: Map<string, number>, blankCount: number): number {
+        const available = new Map(letterCount);
+        let blanksUsed = 0;
+
+        for (const ch of word) {
+            const count = available.get(ch) || 0;
+            if (count > 0) {
+                available.set(ch, count - 1);
+            } else if (blanksUsed < blankCount) {
+                blanksUsed++;
+            } else {
+                return -1; // Cannot form this word
+            }
+        }
+
+        return blanksUsed;
+    }
+
     getWordsStartingWith(prefix: string): string[] {
         const normalizedPrefix = prefix.toLowerCase().trim();
-        const node = this.traverseForward(normalizedPrefix);
-        if (!node) return [];
+        const result: string[] = [];
 
-        const words: string[] = [];
-        this.collectWords(node, normalizedPrefix, words);
-        return words;
+        // Search forward arrays for words starting with prefix
+        for (const [, words] of this.forwardWords) {
+            const start = this.lowerBound(words, normalizedPrefix);
+            const end = this.upperBound(words, this.nextPrefix(normalizedPrefix));
+            for (let i = start; i < end; i++) {
+                result.push(words[i]);
+            }
+        }
+
+        return result;
     }
 
-    /**
-     * Gets all dictionary words that end with a given suffix
-     * (words where the suffix is appended to something else)
-     */
     getWordsEndingWith(suffix: string): string[] {
         const normalizedSuffix = suffix.toLowerCase().trim();
-        const words: string[] = [];
+        const reversedSuffix = normalizedSuffix.split('').reverse().join('');
+        const result: string[] = [];
 
-        const allWords = this.getAllWords();
-        for (const word of allWords) {
-            if (word.endsWith(normalizedSuffix)) {
-                words.push(word);
+        // Search reverse arrays for reversed words starting with reversed suffix
+        for (const [, revWords] of this.reverseWords) {
+            const start = this.lowerBound(revWords, reversedSuffix);
+            const end = this.upperBound(revWords, this.nextPrefix(reversedSuffix));
+            for (let i = start; i < end; i++) {
+                const revWord = revWords[i];
+                result.push(revWord.split('').reverse().join(''));
             }
         }
 
-        return words;
-    }
-
-    // Private methods
-
-    private traverseForward(prefix: string): TrieNode | null {
-        let currentNode = this.forwardTrie;
-        for (const char of prefix) {
-            if (!currentNode.children.has(char)) {
-                return null;
-            }
-            currentNode = currentNode.children.get(char)!;
-        }
-        return currentNode;
-    }
-
-    private collectWords(node: TrieNode, prefix: string, words: string[]): void {
-        if (node.isEndOfWord) {
-            words.push(prefix);
-        }
-        for (const [char, childNode] of node.children) {
-            this.collectWords(childNode, prefix + char, words);
-        }
+        return result;
     }
 }
