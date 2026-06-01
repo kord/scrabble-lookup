@@ -303,20 +303,7 @@ const InputVisualization: React.FC<{
             })}
           </div>
         </div>
-        <div className="legend">
-          <div className="legend-item">
-            <span className="legend-color prefix"></span>
-            Can have a prefix added
-          </div>
-          <div className="legend-item">
-            <span className="legend-color suffix"></span>
-            Can have a suffix added
-          </div>
-          <div className="legend-item">
-            <span className="legend-color both"></span>
-            Both possible
-          </div>
-        </div>
+
       </div>
     </div>
   );
@@ -492,7 +479,7 @@ const WordAnalyzer: React.FC = () => {
           Word affix analyzer &amp; anagram finder
           {blankCount > 0 && (
             <span className="blank-indicator">
-              {' '}· {blankCount} blank{blankCount > 1 ? 's' : ''} (<code>?</code>)
+              {' '} {blankCount} blank{blankCount > 1 ? 's' : ''} (<code>?</code>)
             </span>
           )}
         </p>
