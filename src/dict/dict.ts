@@ -62,7 +62,7 @@ export class BiDirectionalDictionary {
     /**
      * Must be called after all inserts to sort the arrays for binary search.
      */
-    finalize(): void {
+    finalize(): BiDirectionalDictionary {
         for (const [len, words] of this.forwardWords) {
             words.sort();
             this.forwardWords.set(len, words);
@@ -71,6 +71,7 @@ export class BiDirectionalDictionary {
             words.sort();
             this.reverseWords.set(len, words);
         }
+        return this;
     }
 
     check(word: string): boolean {

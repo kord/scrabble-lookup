@@ -30,9 +30,9 @@ import { CSW_22_WORDS } from './CSW22';
 //
 // ============================================================
 
-export const SowpodsDictionary = new BiDirectionalDictionary(SOWPODS_WORDS);
-export const Twl06Dictionary = new BiDirectionalDictionary(TWL_06_WORDS);
-export const Csw22Dictionary = new BiDirectionalDictionary(CSW_22_WORDS);
+export const SowpodsDictionary = new BiDirectionalDictionary(SOWPODS_WORDS).finalize();
+export const Twl06Dictionary = new BiDirectionalDictionary(TWL_06_WORDS).finalize();
+export const Csw22Dictionary = new BiDirectionalDictionary(CSW_22_WORDS).finalize();
 
 /**
  * Dictionary metadata for the selector UI
