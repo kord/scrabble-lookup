@@ -1,3 +1,5 @@
+// src/components/WordAnalyzer.tsx
+
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { SowpodsDictionary } from '../dict/scrabbledicts';
 import "../css/WordAnalyzer.css";
@@ -299,6 +301,7 @@ const BlankHelp: React.FC = () => {
       <div className="blank-help-title">💡 Blank tile tips</div>
       <ul>
         <li>Use <code>?</code> for a blank tile (matches any letter)</li>
+        <li><code>mdo?</code> → finds <em>doom</em>, <em>dome</em>, <em>mode</em>, <em>mood</em>, etc.</li>
         <li><code>c?t</code> → finds <em>cat</em>, <em>cot</em>, <em>cut</em>, etc.</li>
         <li><code>??t</code> → finds all 3-letter words ending in <em>t</em></li>
         <li><code>l?st?n</code> → finds <em>listener</em>, <em>listening</em></li>
@@ -382,7 +385,9 @@ const WordAnalyzer: React.FC = () => {
     };
   }, [debouncedInput]);
 
-  // Compute anagram results
+  // ====================================================================
+  // 🛠️ FIXED: Anagram search with proper ? wildcard handling
+  // ====================================================================
   const anagramResults = useMemo(() => {
     if (!debouncedInput || debouncedInput.trim().length === 0) {
       return [] as AnagramResult[];
@@ -392,8 +397,21 @@ const WordAnalyzer: React.FC = () => {
 
     // Don't search if input has characters other than letters and ?
     if (!/^[a-z?]+$/.test(cleanInput)) return [];
+    const blanks = countWildcards(cleanInput);
 
-    return dictionary.findAnagrams(cleanInput);
+    const results = dictionary.findAnagrams(cleanInput, blanks);
+    if (results && Array.isArray(results)) {
+
+      results.sort((a, b) => {
+        if (a.blanks !== b.blanks) return a.blanks - b.blanks;
+        return a.word.localeCompare(b.word);
+      });
+
+      return results;
+    }
+
+    // Last resort: return empty
+    return [];
   }, [debouncedInput]);
 
   const clearInput = useCallback(() => {
@@ -564,7 +582,7 @@ const WordAnalyzer: React.FC = () => {
           </p>
           <div className="welcome-examples">
             <p>Try: <code>help</code>, <code>act</code>, <code>test</code>, <code>listen</code></p>
-            <p>Use <code>?</code> for blanks: <code>c?t</code>, <code>??t</code>, <code>l?st?n</code></p>
+            <p>Use <code>?</code> for blanks: <code>mdo?</code>, <code>c?t</code>, <code>??t</code>, <code>l?st?n</code></p>
           </div>
         </div>
       )}
@@ -573,3 +591,10 @@ const WordAnalyzer: React.FC = () => {
 };
 
 export default WordAnalyzer;
+
+function countWildcards(cleanInput: string): number {
+  if (!cleanInput) return 0;
+  const matches = cleanInput.match(/\?/g);
+  return matches ? matches.length : 0;
+}
+
