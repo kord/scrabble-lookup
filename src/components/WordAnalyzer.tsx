@@ -319,21 +319,6 @@ const InputVisualization: React.FC<{
   );
 };
 
-const BlankHelp: React.FC = () => {
-  return (
-    <div className="blank-help">
-      <div className="blank-help-title">💡 Blank tile tips</div>
-      <ul>
-        <li>Use <code>?</code> for a blank tile (matches any letter)</li>
-        <li><code>mdo?</code> → finds <em>doom</em>, <em>dome</em>, <em>mode</em>, <em>mood</em>, etc.</li>
-        <li><code>c?t</code> → finds <em>cat</em>, <em>cot</em>, <em>cut</em>, etc.</li>
-        <li><code>??t</code> → finds all 3-letter words ending in <em>t</em></li>
-        <li><code>l?st?n</code> → finds <em>listener</em>, <em>listening</em></li>
-      </ul>
-    </div>
-  );
-};
-
 // ==========================================================
 // MAIN COMPONENT
 // ==========================================================
@@ -578,11 +563,6 @@ const WordAnalyzer: React.FC = () => {
       {activeTab === 'anagrams' && (
         <div className="results-section">
           <div className="anagram-results-container">
-            {/* Blank help shown when input has ? */}
-            {blankCount > 0 && (
-              <BlankHelp />
-            )}
-
             {/* Main anagram list */}
             <div className="anagram-column">
               <div className="column-header">
