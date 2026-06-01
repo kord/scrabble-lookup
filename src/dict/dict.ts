@@ -10,7 +10,7 @@ class TrieNode {
 
 export class BiDirectionalPrefixDictionary {
     private forwardTrie: TrieNode;
-    private wordCount: number;
+    public wordCount: number;
 
     constructor(wordlist: string[] = []) {
         this.forwardTrie = new TrieNode();

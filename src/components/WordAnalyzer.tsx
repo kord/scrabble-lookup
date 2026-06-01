@@ -137,33 +137,50 @@ const LoadingSpinner: React.FC = () => {
     </div>
   );
 };
-
 const GroupedAffixList: React.FC<{
   items: AffixResult[];
   isPrefix: boolean;
   isLoading?: boolean;
-}> = ({ items, isPrefix, isLoading = false }) => {
-  const grouped = useMemo(() => {
+  inputLength?: number;
+}> = ({ items, isPrefix, isLoading = false, inputLength = 0 }) => {
+  const { groups, totalFiltered, totalOriginal } = useMemo(() => {
+    // When input is only 1 character, only show 1 and 2 length affixes
+    let filteredItems = items;
+    const totalOriginal = items.length;
+
+    if (inputLength === 1) {
+      filteredItems = items.filter(
+        item => item.affixLength === 1 || item.affixLength === 2
+      );
+    }
+
     const groups: { [key: number]: AffixResult[] } = {};
-    items.forEach(item => {
+    filteredItems.forEach(item => {
       const len = item.affixLength;
       if (!groups[len]) groups[len] = [];
       groups[len].push(item);
     });
-    return Object.entries(groups)
+
+    const sortedGroups = Object.entries(groups)
       .sort(([a], [b]) => Number(a) - Number(b))
       .map(([length, affixes]) => ({
         length: Number(length),
         affixes: affixes.sort((a, b) => a.affix.localeCompare(b.affix))
       }));
-  }, [items]);
+
+    return {
+      groups: sortedGroups,
+      totalFiltered: filteredItems.length,
+      totalOriginal
+    };
+  }, [items, inputLength]);
 
   if (isLoading) return <LoadingSpinner />;
-  if (items.length === 0) return <EmptyState type={isPrefix ? 'prefixes' : 'suffixes'} />;
+  if (groups.length === 0) return <EmptyState type={isPrefix ? 'prefixes' : 'suffixes'} />;
 
   return (
     <div className="grouped-affix-list">
-      {grouped.map(group => (
+      {groups.map(group => (
         <div key={group.length} className="affix-group">
           <div className="affix-group-header">
             {group.length} character{group.length !== 1 ? 's' : ''} ({group.affixes.length})
@@ -180,9 +197,16 @@ const GroupedAffixList: React.FC<{
           </div>
         </div>
       ))}
+      {/* Show a note when filtering is active */}
+      {inputLength === 1 && totalFiltered < totalOriginal && (
+        <div className="affix-filter-note">
+          Showing only 1–2 character affixes ({totalFiltered} of {totalOriginal} total)
+        </div>
+      )}
     </div>
   );
 };
+
 
 const AnagramList: React.FC<{
   items: AnagramResult[];
@@ -397,9 +421,8 @@ const WordAnalyzer: React.FC = () => {
 
     // Don't search if input has characters other than letters and ?
     if (!/^[a-z?]+$/.test(cleanInput)) return [];
-    const blanks = countWildcards(cleanInput);
 
-    const results = dictionary.findAnagrams(cleanInput, blanks);
+    const results = dictionary.findAnagrams(cleanInput);
     if (results && Array.isArray(results)) {
 
       results.sort((a, b) => {
@@ -507,7 +530,11 @@ const WordAnalyzer: React.FC = () => {
                   <span className="column-icon">↪</span>
                   <span className="column-title">Prefixes</span>
                   <span className="column-subtitle">Add before</span>
-                  <span className="column-count">{affixResults.prefixes.length}</span>
+                  <span className="column-count">
+                    {debouncedInput.length === 1
+                      ? affixResults.suffixes.filter(p => p.affixLength <= 2).length
+                      : affixResults.suffixes.length
+                    }</span>
                 </div>
                 <div className="column-body">
                   <GroupedAffixList
@@ -527,7 +554,12 @@ const WordAnalyzer: React.FC = () => {
                   <span className="column-icon">↩</span>
                   <span className="column-title">Suffixes</span>
                   <span className="column-subtitle">Add after</span>
-                  <span className="column-count">{affixResults.suffixes.length}</span>
+                  <span className="column-count">
+                    {debouncedInput.length === 1
+                      ? affixResults.prefixes.filter(p => p.affixLength <= 2).length
+                      : affixResults.prefixes.length
+                    }
+                  </span>
                 </div>
                 <div className="column-body">
                   <GroupedAffixList
@@ -591,10 +623,3 @@ const WordAnalyzer: React.FC = () => {
 };
 
 export default WordAnalyzer;
-
-function countWildcards(cleanInput: string): number {
-  if (!cleanInput) return 0;
-  const matches = cleanInput.match(/\?/g);
-  return matches ? matches.length : 0;
-}
-

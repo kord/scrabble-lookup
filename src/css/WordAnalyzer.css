@@ -698,6 +698,15 @@
     color: #fde68a;
 }
 
+.affix-filter-note {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: #888;
+    font-style: italic;
+    border-top: 1px solid #eee;
+    margin-top: 8px;
+}
+
 /* ==========================================================
    RESPONSIVE
    ========================================================== */

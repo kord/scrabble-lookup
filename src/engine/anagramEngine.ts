@@ -69,8 +69,9 @@ export class AnagramEngine {
    * @returns Array of matching dictionary words
    */
   search(pattern: string): string[] {
-    const normalized = pattern.toLowerCase().trim();
-    const blanks = (normalized.match(/\?/g) || []).length;
+    const blanks = (pattern.match(/\?/g) || []).length;
+    const normalized = pattern.toLowerCase().trim().replace(/\?/g, '');
+
 
     if (normalized.length === 0) return [];
 
@@ -81,7 +82,7 @@ export class AnagramEngine {
 
     // 1-2 blanks: trie traversal (prunes well)
     if (blanks <= 2) {
-      return this.searchWithBlanks(normalized);
+      return this.searchWithBlanks(normalized, blanks);
     }
 
     // 3+ blanks: regex fallback
@@ -94,8 +95,10 @@ export class AnagramEngine {
    */
   private searchExact(word: string): string[] {
     if (!word) return [];
-    const sorted = word.split('').sort().join('');
-    return this.exactIndex.get(sorted) ?? [];
+    const normalized = word.split('').sort().join('')
+    console.log(`Searching exact anagrams for: ${normalized}`);
+
+    return this.exactIndex.get(normalized) ?? [];
   }
 
   /**
@@ -103,9 +106,28 @@ export class AnagramEngine {
    * Each '?' branches to all valid children.
    * Natural pruning means 26^B worst case rarely materializes.
    */
-  private searchWithBlanks(pattern: string): string[] {
+  private searchWithBlanks(pattern: string, blanks: number): string[] {
+    // Assume the blanks are at the start, since it's been normalized already.
     const results = new Set<string>();
-    this.dfs(this.root, pattern, 0, results);
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+    if (blanks === 1) {
+      alphabet.forEach(char => {
+        const modified = pattern + char;
+        this.searchExact(modified).forEach(element => {
+          results.add(element);
+        });
+      });
+    }
+    if (blanks === 2) {
+      alphabet.forEach(char1 => {
+        alphabet.forEach(char2 => {
+          const modified = pattern + char1 + char2;
+          this.searchExact(modified).forEach(element => {
+            results.add(element);
+          });
+        });
+      });
+    }
     return Array.from(results);
   }
 
