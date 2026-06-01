@@ -140,8 +140,6 @@ export function findAnagrams(
     const q = normalize(query);
     if (!q || q.length === 0) return [];
 
-    const wildcardCount = countWildcards(q);
-
     const results: AnagramResult[] = [];
 
     for (const word of wordList) {

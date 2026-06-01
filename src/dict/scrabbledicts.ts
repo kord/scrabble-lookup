@@ -12,6 +12,7 @@ import { AnagramEngine } from '../engine';
 import { SOWPODS_WORDS } from './sowpods';
 import { TWL_06_WORDS } from './twl06';
 import { BiDirectionalPrefixDictionary } from './dict';
+import { CSW_22_WORDS } from './CSW22';
 
 // ============================================================
 // SOWPODS DICTIONARY — Full Scrabble wrapper
@@ -60,3 +61,4 @@ class ScrabbleDictionary {
 // Singleton instance
 export const SowpodsDictionary = new ScrabbleDictionary(SOWPODS_WORDS);
 export const Twl06Dictionary = new ScrabbleDictionary(TWL_06_WORDS);
+export const Csw22Dictionary = new ScrabbleDictionary(CSW_22_WORDS);

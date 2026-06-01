@@ -1,10 +1,12 @@
 // src/components/WordAnalyzer.tsx
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { SowpodsDictionary } from '../dict/scrabbledicts';
+import { Csw22Dictionary, SowpodsDictionary, Twl06Dictionary } from '../dict/scrabbledicts';
 import "../css/WordAnalyzer.css";
 
 const dictionary = SowpodsDictionary;
+const dictionary2 = Csw22Dictionary;
+const dictionary3 = Twl06Dictionary;
 
 // ==========================================================
 // TYPE DEFINITIONS
