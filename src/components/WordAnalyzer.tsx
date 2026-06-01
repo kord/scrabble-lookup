@@ -371,8 +371,6 @@ const WordAnalyzer: React.FC = () => {
   // Handle dictionary switch — clear input when switching
   const handleDictionaryChange = useCallback((newId: string) => {
     setActiveDictionaryId(newId);
-    setInput('');
-    setDebouncedInput('');
   }, []);
 
   // Handle input change with debouncing
