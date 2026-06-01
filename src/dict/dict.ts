@@ -8,7 +8,7 @@
  * This allows efficient prefix and suffix lookup without a trie.
  */
 
-export class BiDirectionalPrefixDictionary {
+export class BiDirectionalDictionary {
     private forwardWords: Map<number, string[]>;  // length → sorted words
     private reverseWords: Map<number, string[]>;  // length → reversed words
     private wordSet: Set<string>;

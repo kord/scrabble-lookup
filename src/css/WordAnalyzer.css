@@ -766,3 +766,58 @@
         font-size: 15px;
     }
 }
+
+/* ==========================================================
+   DICTIONARY SELECTOR
+   ========================================================== */
+
+.dictionary-selector-container {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0 12px;
+}
+
+.dictionary-selector {
+    display: inline-flex;
+    gap: 4px;
+    background: #f0f0f0;
+    border-radius: 8px;
+    padding: 4px;
+}
+
+.dict-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: #555;
+}
+
+.dict-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #333;
+}
+
+.dict-btn.active {
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    color: #1a73e8;
+}
+
+.dict-btn-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.dict-btn-count {
+    font-size: 0.7rem;
+    opacity: 0.6;
+}

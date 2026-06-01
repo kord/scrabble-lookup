@@ -1,12 +1,14 @@
 // src/components/WordAnalyzer.tsx
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Csw22Dictionary, SowpodsDictionary, Twl06Dictionary } from '../dict/scrabbledicts';
+import {
+  AVAILABLE_DICTIONARIES,
+  DictionaryInfo,
+  SowpodsDictionary,
+  Csw22Dictionary,
+  Twl06Dictionary
+} from '../dict/scrabbledicts';
 import "../css/WordAnalyzer.css";
-
-const dictionary = SowpodsDictionary;
-const dictionary2 = Csw22Dictionary;
-const dictionary3 = Twl06Dictionary;
 
 // ==========================================================
 // TYPE DEFINITIONS
@@ -139,6 +141,7 @@ const LoadingSpinner: React.FC = () => {
     </div>
   );
 };
+
 const GroupedAffixList: React.FC<{
   items: AffixResult[];
   isPrefix: boolean;
@@ -199,7 +202,6 @@ const GroupedAffixList: React.FC<{
           </div>
         </div>
       ))}
-      {/* Show a note when filtering is active */}
       {inputLength === 1 && totalFiltered < totalOriginal && (
         <div className="affix-filter-note">
           Showing only 1–2 character affixes ({totalFiltered} of {totalOriginal} total)
@@ -218,7 +220,6 @@ const AnagramList: React.FC<{
   if (isLoading) return <LoadingSpinner />;
   if (items.length === 0) return <EmptyState type="anagrams" hasBlanks={hasBlanks} />;
 
-  // Group by blank count (exact vs wildcard)
   const exactMatches = items.filter(i => i.blanks === 0);
   const wildcardMatches = items.filter(i => i.blanks > 0);
 
@@ -322,6 +323,35 @@ const InputVisualization: React.FC<{
 };
 
 // ==========================================================
+// DICTIONARY SELECTOR COMPONENT
+// ==========================================================
+
+const DictionarySelector: React.FC<{
+  dictionaries: DictionaryInfo[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  wordCounts: Record<string, number>;
+}> = ({ dictionaries, activeId, onSelect, wordCounts }) => {
+  return (
+    <div className="dictionary-selector">
+      {dictionaries.map(dict => (
+        <button
+          key={dict.id}
+          className={`dict-btn ${dict.id === activeId ? 'active' : ''}`}
+          onClick={() => onSelect(dict.id)}
+          title={`${dict.name}: ${dict.description}`}
+        >
+          <span className="dict-btn-name">{dict.name}</span>
+          <span className="dict-btn-count">
+            {wordCounts[dict.id]?.toLocaleString() ?? '0'} words
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// ==========================================================
 // MAIN COMPONENT
 // ==========================================================
 
@@ -330,9 +360,33 @@ const WordAnalyzer: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [debouncedInput, setDebouncedInput] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'affixes' | 'anagrams'>('affixes');
+  const [activeDictionaryId, setActiveDictionaryId] = useState<string>('sowpods');
   const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Map dictionary IDs to instances
+  const dictionaryMap: Record<string, typeof SowpodsDictionary> = useMemo(() => ({
+    sowpods: SowpodsDictionary,
+    twl06: Twl06Dictionary,
+    csw22: Csw22Dictionary,
+  }), []);
+
+  const activeDictionary = dictionaryMap[activeDictionaryId];
+
+  // Track word counts for the selector display
+  const wordCounts = useMemo(() => ({
+    sowpods: SowpodsDictionary.getWordCount(),
+    twl06: Twl06Dictionary.getWordCount(),
+    csw22: Csw22Dictionary.getWordCount(),
+  }), []);
+
   const blankCount = (input.match(/\?/g) || []).length;
+
+  // Handle dictionary switch — clear input when switching
+  const handleDictionaryChange = useCallback((newId: string) => {
+    setActiveDictionaryId(newId);
+    setInput('');
+    setDebouncedInput('');
+  }, []);
 
   // Handle input change with debouncing
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -359,7 +413,7 @@ const WordAnalyzer: React.FC = () => {
     };
   }, []);
 
-  // Compute affix results from dictionary
+  // Compute affix results from active dictionary
   const affixResults = useMemo(() => {
     if (!debouncedInput || debouncedInput.trim().length === 0) {
       return {
@@ -372,16 +426,16 @@ const WordAnalyzer: React.FC = () => {
 
     const cleanInput = debouncedInput.toLowerCase().trim();
 
-    const wordExists = dictionary.check(cleanInput);
+    const wordExists = activeDictionary.check(cleanInput);
 
-    const prefixStrings = dictionary.findValidPrefixes(cleanInput);
+    const prefixStrings = activeDictionary.findValidPrefixes(cleanInput);
     const prefixes: AffixResult[] = prefixStrings.map(prefix => ({
       affix: prefix,
       combinedWord: prefix + cleanInput,
       affixLength: prefix.length
     }));
 
-    const suffixStrings = dictionary.findValidSuffixes(cleanInput);
+    const suffixStrings = activeDictionary.findValidSuffixes(cleanInput);
     const suffixes: AffixResult[] = suffixStrings.map(suffix => ({
       affix: suffix,
       combinedWord: cleanInput + suffix,
@@ -394,11 +448,9 @@ const WordAnalyzer: React.FC = () => {
       wordExists,
       totalCombinations: prefixes.length + suffixes.length
     };
-  }, [debouncedInput]);
+  }, [debouncedInput, activeDictionary]);
 
-  // ====================================================================
-  // 🛠️ FIXED: Anagram search with proper ? wildcard handling
-  // ====================================================================
+  // Anagram search with proper ? wildcard handling
   const anagramResults = useMemo(() => {
     if (!debouncedInput || debouncedInput.trim().length === 0) {
       return [] as AnagramResult[];
@@ -409,20 +461,17 @@ const WordAnalyzer: React.FC = () => {
     // Don't search if input has characters other than letters and ?
     if (!/^[a-z?]+$/.test(cleanInput)) return [];
 
-    const results = dictionary.findAnagrams(cleanInput);
+    const results = activeDictionary.findAnagrams(cleanInput);
     if (results && Array.isArray(results)) {
-
       results.sort((a, b) => {
         if (a.blanks !== b.blanks) return a.blanks - b.blanks;
         return a.word.localeCompare(b.word);
       });
-
       return results;
     }
 
-    // Last resort: return empty
     return [];
-  }, [debouncedInput]);
+  }, [debouncedInput, activeDictionary]);
 
   const clearInput = useCallback(() => {
     setInput('');
@@ -447,6 +496,16 @@ const WordAnalyzer: React.FC = () => {
             </span>
           )}
         </p>
+      </div>
+
+      {/* Dictionary Selector */}
+      <div className="dictionary-selector-container">
+        <DictionarySelector
+          dictionaries={AVAILABLE_DICTIONARIES}
+          activeId={activeDictionaryId}
+          onSelect={handleDictionaryChange}
+          wordCounts={wordCounts}
+        />
       </div>
 
       {/* Input Section */}
@@ -475,9 +534,7 @@ const WordAnalyzer: React.FC = () => {
         {/* Slider to toggle between Affixes and Anagram tabs */}
         <div className="tab-slider-container" onClick={toggleTab} title="Click to switch mode">
           <div className={`tab-slider-track ${activeTab === 'anagrams' ? 'anagram-active' : ''}`}>
-            <div className="tab-slider-thumb">
-              {/* {activeTab === 'affixes' ? '🔤' : '🔄'} */}
-            </div>
+            <div className="tab-slider-thumb"></div>
             <span className="tab-slider-label affix-label">Affixes</span>
             <span className="tab-slider-label anagram-label">Anagrams</span>
           </div>
@@ -528,6 +585,7 @@ const WordAnalyzer: React.FC = () => {
                     items={affixResults.prefixes}
                     isPrefix={true}
                     isLoading={isAnalyzing}
+                    inputLength={debouncedInput.length}
                   />
                 </div>
               </div>
@@ -553,6 +611,7 @@ const WordAnalyzer: React.FC = () => {
                     items={affixResults.suffixes}
                     isPrefix={false}
                     isLoading={isAnalyzing}
+                    inputLength={debouncedInput.length}
                   />
                 </div>
               </div>
@@ -565,7 +624,6 @@ const WordAnalyzer: React.FC = () => {
       {activeTab === 'anagrams' && (
         <div className="results-section">
           <div className="anagram-results-container">
-            {/* Main anagram list */}
             <div className="anagram-column">
               <div className="column-header">
                 <span className="column-icon">🔄</span>

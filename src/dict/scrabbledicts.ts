@@ -11,19 +11,71 @@
 import { AnagramEngine } from '../engine';
 import { SOWPODS_WORDS } from './sowpods';
 import { TWL_06_WORDS } from './twl06';
-import { BiDirectionalPrefixDictionary } from './dict';
+import { BiDirectionalDictionary } from './dict';
 import { CSW_22_WORDS } from './CSW22';
+
+// ============================================================
+// Dictionary instances
+// ============================================================
+// These are populated lazily — you need to provide word lists
+// and call `finalize()` after inserting all words.
+//
+// For production, import your actual word lists and pass them
+// to the constructor, then call finalize().
+//
+// Example:
+//   import { sowpodsWords } from './sowpods-wordlist';
+//   const SowpodsDictionary = new BiDirectionalPrefixDictionary(sowpodsWords);
+//   SowpodsDictionary.finalize();
+//
+// ============================================================
+
+export const SowpodsDictionary = new BiDirectionalDictionary(SOWPODS_WORDS);
+export const Twl06Dictionary = new BiDirectionalDictionary(TWL_06_WORDS);
+export const Csw22Dictionary = new BiDirectionalDictionary(CSW_22_WORDS);
+
+/**
+ * Dictionary metadata for the selector UI
+ */
+export interface DictionaryInfo {
+    id: 'sowpods' | 'twl06' | 'csw22';
+    name: string;
+    description: string;
+    instance: BiDirectionalDictionary;
+}
+
+export const AVAILABLE_DICTIONARIES: DictionaryInfo[] = [
+    {
+        id: 'sowpods',
+        name: 'SOWPODS',
+        description: 'Int\'l tournament standard (OSW + TWL)',
+        instance: SowpodsDictionary,
+    },
+    {
+        id: 'twl06',
+        name: 'TWL06',
+        description: 'North American tournament list',
+        instance: Twl06Dictionary,
+    },
+    {
+        id: 'csw22',
+        name: 'CSW22',
+        description: '2022 Collins Scrabble Words (latest)',
+        instance: Csw22Dictionary,
+    },
+];
+
 
 // ============================================================
 // SOWPODS DICTIONARY — Full Scrabble wrapper
 // ============================================================
 
 class ScrabbleDictionary {
-    private dict: BiDirectionalPrefixDictionary;
+    private dict: BiDirectionalDictionary;
     private anagramEngine: AnagramEngine;
 
     constructor(words: string[]) {
-        this.dict = new BiDirectionalPrefixDictionary(words);
+        this.dict = new BiDirectionalDictionary(words);
         this.dict.finalize();
         this.anagramEngine = new AnagramEngine();
         this.anagramEngine.build(words);
@@ -58,8 +110,3 @@ class ScrabbleDictionary {
         return this.dict.wordCount;
     }
 }
-
-// Singleton instance
-export const SowpodsDictionary = new ScrabbleDictionary(SOWPODS_WORDS);
-export const Twl06Dictionary = new ScrabbleDictionary(TWL_06_WORDS);
-export const Csw22Dictionary = new ScrabbleDictionary(CSW_22_WORDS);
