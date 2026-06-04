@@ -5,15 +5,24 @@
  * Strategy:
  *   1. Parse raw word arrays from src/dict/{sowpods,twl06,CSW22}.ts
  *   2. Compute: COMMON = intersection of all three
- *   3. Compute per-dictionary deltas: DICT \ COMMON
- *   4. Group each set by word length, sort, join with "|"
- *   5. Write 4 compiled TS files as Record<number, string>
+ *   3. Compute: SOWPODS_CSW22_SHARED = (SOWPODS ∩ CSW22) \ COMMON
+ *   4. Compute: SOWPODS_UNIQUE = SOWPODS \ (COMMON ∪ CSW22)
+ *   5. Compute: CSW22_UNIQUE  = CSW22 \ (COMMON ∪ SOWPODS)
+ *   6. Compute: TWL06_DELTA   = TWL06 \ COMMON
+ *   7. Group each set by word length, sort, join with "|"
+ *   8. Write 5 compiled TS files as Record<number, string>
+ *
+ * Runtime reconstitution:
+ *   SOWPODS = COMMON ∪ SOWPODS_CSW22_SHARED ∪ SOWPODS_UNIQUE
+ *   CSW22   = COMMON ∪ SOWPODS_CSW22_SHARED ∪ CSW22_UNIQUE
+ *   TWL06   = COMMON ∪ TWL06_DELTA
  *
  * Output:
- *   src/dict/compiled/common.ts        — words in all 3 dicts
- *   src/dict/compiled/sowpods-delta.ts — SOWPODS-only words
- *   src/dict/compiled/twl06-delta.ts   — TWL06-only words
- *   src/dict/compiled/csw22-delta.ts   — CSW22-only words
+ *   src/dict/compiled/common.ts               — words in all 3 dicts
+ *   src/dict/compiled/sowpods-csw22-shared.ts  — in both SOWPODS & CSW22, not TWL06
+ *   src/dict/compiled/sowpods-unique.ts        — SOWPODS-only words
+ *   src/dict/compiled/csw22-unique.ts          — CSW22-only words
+ *   src/dict/compiled/twl06-delta.ts           — TWL06-only words
  *
  * Usage:  node scripts/build-dicts.mjs
  */
@@ -107,42 +116,54 @@ console.log(`  CSW22:   ${csw22.size.toLocaleString()} words`);
 
 // 2. Compute intersection (common to all three)
 const common = new Set([...sowpods].filter(w => twl06.has(w) && csw22.has(w)));
-console.log(`\n  Common:  ${common.size.toLocaleString()} words`);
+console.log(`\n  Common (all 3):  ${common.size.toLocaleString()} words`);
 
-// 3. Compute deltas
-const sowpodsDelta = new Set([...sowpods].filter(w => !common.has(w)));
+// 3. Compute SOWPODS-CSW22 shared set (words in both but NOT in TWL06)
+const sowpodsCsw22Shared = new Set(
+    [...sowpods].filter(w => !common.has(w) && csw22.has(w))
+);
+console.log(`  SOWPODS∩CSW22 (not TWL): ${sowpodsCsw22Shared.size.toLocaleString()} words`);
+
+// 4. Compute truly-unique deltas
+const sowpodsUnique = new Set(
+    [...sowpods].filter(w => !common.has(w) && !csw22.has(w))
+);
+const csw22Unique = new Set(
+    [...csw22].filter(w => !common.has(w) && !sowpods.has(w))
+);
 const twl06Delta = new Set([...twl06].filter(w => !common.has(w)));
-const csw22Delta = new Set([...csw22].filter(w => !common.has(w)));
 
-console.log(`  SOWPODS-only: ${sowpodsDelta.size.toLocaleString()} words`);
-console.log(`  TWL06-only:   ${twl06Delta.size.toLocaleString()} words`);
-console.log(`  CSW22-only:   ${csw22Delta.size.toLocaleString()} words`);
+console.log(`  SOWPODS truly unique: ${sowpodsUnique.size.toLocaleString()} words`);
+console.log(`  CSW22 truly unique:   ${csw22Unique.size.toLocaleString()} words`);
+console.log(`  TWL06-only:            ${twl06Delta.size.toLocaleString()} words`);
 
 // Verify reconstitution
-const sowpodsRecon = new Set([...common, ...sowpodsDelta]);
+const sowpodsRecon = new Set([...common, ...sowpodsCsw22Shared, ...sowpodsUnique]);
+const csw22Recon = new Set([...common, ...sowpodsCsw22Shared, ...csw22Unique]);
 const twl06Recon = new Set([...common, ...twl06Delta]);
-const csw22Recon = new Set([...common, ...csw22Delta]);
 
 console.log(`\n  Reconstitution check:`);
 console.log(`    SOWPODS: ${sowpodsRecon.size === sowpods.size ? '✓' : '✗ FAILED'} (${sowpodsRecon.size} vs ${sowpods.size})`);
-console.log(`    TWL06:   ${twl06Recon.size === twl06.size ? '✓' : '✗ FAILED'} (${twl06Recon.size} vs ${twl06.size})`);
 console.log(`    CSW22:   ${csw22Recon.size === csw22.size ? '✓' : '✗ FAILED'} (${csw22Recon.size} vs ${csw22.size})`);
+console.log(`    TWL06:   ${twl06Recon.size === twl06.size ? '✓' : '✗ FAILED'} (${twl06Recon.size} vs ${twl06.size})`);
 
-// 4. Group by length
+// 5. Group by length
 const commonGrouped = groupByLength(common);
-const sowpodsGrouped = groupByLength(sowpodsDelta);
+const sowpodsCsw22Grouped = groupByLength(sowpodsCsw22Shared);
+const sowpodsUniqueGrouped = groupByLength(sowpodsUnique);
+const csw22UniqueGrouped = groupByLength(csw22Unique);
 const twl06Grouped = groupByLength(twl06Delta);
-const csw22Grouped = groupByLength(csw22Delta);
 
-// 5. Write compiled files
+// 6. Write compiled files
 mkdirSync(COMPILED_DIR, { recursive: true });
 console.log('');
 writeCompiled('common', commonGrouped);
-writeCompiled('sowpods-delta', sowpodsGrouped);
+writeCompiled('sowpods-csw22-shared', sowpodsCsw22Grouped);
+writeCompiled('sowpods-unique', sowpodsUniqueGrouped);
+writeCompiled('csw22-unique', csw22UniqueGrouped);
 writeCompiled('twl06-delta', twl06Grouped);
-writeCompiled('csw22-delta', csw22Grouped);
 
-// 6. Summary
-const totalWords = common.size + sowpodsDelta.size + twl06Delta.size + csw22Delta.size;
-console.log(`\n  Total unique word instances across all 4 files: ${totalWords.toLocaleString()}`);
+// 7. Summary
+const totalWords = common.size + sowpodsCsw22Shared.size + sowpodsUnique.size + csw22Unique.size + twl06Delta.size;
+console.log(`\n  Total unique word instances across all 5 files: ${totalWords.toLocaleString()}`);
 console.log('  Done.\n');
