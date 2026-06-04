@@ -19,6 +19,7 @@ A lightweight React + TypeScript app for exploring Scrabble words: find valid pr
 - Mode toggle between Affix and Anagram views (implemented in the main `WordAnalyzer` component).
 - Toggle between dictionaries (for now, SOWPODS, TWL '06 and Collins '22)
 - Clear/reset controls, helpful empty states, and a small stats bar with counts and dictionary status.
+- Hovering on a word in one of the results pane will attempt to lookup a definition of the word.
 
 ## Project structure (key files)
 - `src/components/WordAnalyzer.tsx` — main UI and controls.
@@ -32,7 +33,7 @@ A lightweight React + TypeScript app for exploring Scrabble words: find valid pr
 - React (functional components)
 - TypeScript
 - Plain CSS for styling (`src/css` / `public/static/css`)
-- This was written with the substantial assistance of Deepseek and GPT-5 mini)
+- This was written with the substantial assistance of Deepseek and GPT-5 mini
 
 ## Getting started
 
