@@ -14,7 +14,7 @@ Type any word to instantly discover every valid prefix and suffix that can be ad
 - **Smart filtering** — when entering a single-character input, only 1- and 2-letter affixes are shown to prevent overwhelming results
 
 ### 🔀 Anagram Finder
-Find every anagram of your letters using the full SOWPODS word list.
+Find every anagram of your letters using 3 different wordlists.
 
 - **Exact anagrams** — words using exactly your letters with no blanks
 - **Wildcard support** — use `?` to represent blank tiles (matches any single letter)
