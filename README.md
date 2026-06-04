@@ -1,58 +1,80 @@
-# Scrabble Word Analyzer (Scrabble Lookup)
+# Scrabble Helper (scrabble-lookup)
 
-A React-based dictionary tool for Scrabble players that analyzes words for valid **prefixes**, **suffixes**, and **anagrams** — including support for blank/wildcard tiles (`?`).
+A lightweight React + TypeScript app for exploring Scrabble words: find valid prefixes/suffixes, and generate anagrams (including support for blank/wildcard tiles `?`). The project ships with multiple wordlists and a small anagram engine under `src/engine`.
 
 ## Features
 
-### 🔤 Affix Analyzer
-Type any word to instantly discover every valid prefix and suffix that can be added to it according to the official Scrabble (SOWPODS) dictionary.
+### Affix (prefix/suffix) analysis
+- Discover valid prefixes and suffixes that form real words using the built-in dictionaries in `src/dict`.
+- Character-level highlights show whether a letter position accepts prefixes, suffixes, or both.
+- Results are grouped by affix length for easy scanning.
 
-- **Prefixes** — all valid letter combinations that can be prepended to form a new word
-- **Suffixes** — all valid letter combinations that can be appended to form a new word
-- **Visual highlights** — each character in your input is color-coded to show whether a prefix, suffix, or both can attach at that position
-- **Grouped by length** — results are organized by affix length for easy scanning
-- **Smart filtering** — when entering a single-character input, only 1- and 2-letter affixes are shown to prevent overwhelming results
+### Anagram finder
+- Exact anagrams using only the provided letters.
+- Wildcard support: use `?` to represent blank tiles (each `?` can match any single letter).
+- Results are grouped into exact matches and wildcard matches (grouped by number of blanks used).
 
-### 🔀 Anagram Finder
-Find every anagram of your letters using 3 different wordlists.
+### Interactive UI
+- Debounced input for smooth typing (short delay before searches run).
+- Mode toggle between Affix and Anagram views (implemented in the main `WordAnalyzer` component).
+- Toggle between dictionaries (for now, SOWPODS, TWL '06 and Collins '22)
+- Clear/reset controls, helpful empty states, and a small stats bar with counts and dictionary status.
 
-- **Exact anagrams** — words using exactly your letters with no blanks
-- **Wildcard support** — use `?` to represent blank tiles (matches any single letter)
-- **Result grouping** — exact matches and wildcard matches are displayed in separate groups, with wildcard results further grouped by number of blanks used
-- **Blank count badges** — each wildcard match shows how many `?` tiles were needed
+## Project structure (key files)
+- `src/components/WordAnalyzer.tsx` — main UI and controls.
+- `src/engine/anagramEngine.ts` & `src/engine/anagramUtils.ts` — anagram generation logic.
+- `src/dict/*` — wordlists and dictionary helpers (SOWPODS, TWL06, CSW22, etc.).
+- `public/` and `build/` — static assets and production build output.
+- `firebase.json` — (optional) Firebase hosting config (this repo includes hosting config but keeps secrets out of source).
 
-### 🎯 Interactive UI
-- **Debounced input** — results update automatically as you type (200ms delay)
-- **Toggle between modes** — single-click slider switches between Affix and Anagram modes
-- **Clear button** — quickly reset your search
-- **Empty states** — helpful tips shown when no results match
-- **Stats bar** — shows length, match counts, blank counts, and dictionary status
+## Tech stack
 
-## Tech Stack
+- React (functional components)
+- TypeScript
+- Plain CSS for styling (`src/css` / `public/static/css`)
 
-| Technology | Purpose |
-|-----------|---------|
-| **React** (functional components) | UI framework |
-| **TypeScript** | Type safety |
-| **SOWPODS dictionary** | Official Scrabble word list (UK & international tournament standard) |
-| **CSS** | Custom styling (no framework dependency) |
-| **React hooks** (`useState`, `useMemo`, `useCallback`, `useRef`, `useEffect`) | State management and performance |
-
-## Getting Started
+## Getting started
 
 ### Prerequisites
-- Node.js (v14 or newer)
-- npm or yarn
+- Node.js 14+ and npm (or yarn)
 
-### Installation
+### Install and run locally
 
-```bash
-# Clone the repository
-git clone <repository-url>
+```powershell
+# Clone
+git clone <repo-url>
 cd scrabble-lookup
 
-# Install dependencies
+# Install
 npm install
 
-# Start the development server
+# Start dev server
 npm start
+```
+
+### Build and deploy
+
+```powershell
+# Create an optimized production build
+npm run build
+
+# If you use Firebase Hosting (project contains firebase.json)
+# this project includes a deploy script you can run after configuring Firebase
+npm run deploy
+```
+
+### Tests
+
+```powershell
+npm test
+```
+
+## Notes and tips
+- Dictionaries live in `src/dict`. You can add or replace wordlists there; the app is written to load dictionary files at build time.
+- Service account keys or other secrets must never be committed. This repo keeps only client config and hosting metadata; server secrets belong in environment variables or a secret manager.
+
+## Contributing
+- PRs and issues welcome. Small fixes, updated dictionaries, and UX improvements are good first contributions.
+
+## License
+- See repository metadata for license details.
