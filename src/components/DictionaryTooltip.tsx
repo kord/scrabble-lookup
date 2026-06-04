@@ -23,6 +23,12 @@ interface DictionaryEntry {
 
 const HOVER_DELAY_MS = 400;
 
+type CachedResult =
+    | { type: 'entry'; entry: DictionaryEntry }
+    | { type: 'error'; error: string };
+
+const lookupCache = new Map<string, CachedResult>();
+
 export const DictionaryTooltip: React.FC<{
     word: string;
     anchorRef: React.RefObject<HTMLElement | null>;
@@ -34,11 +40,27 @@ export const DictionaryTooltip: React.FC<{
     const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Fetch definition after a hover delay
+    // Fetch definition after a hover delay (with cache)
     useEffect(() => {
         if (!visible || !word) {
             setEntry(null);
             setError(null);
+            return;
+        }
+
+        const cacheKey = word.toLowerCase();
+
+        // Instant cache hit — no loading needed
+        const cached = lookupCache.get(cacheKey);
+        if (cached) {
+            if (cached.type === 'entry') {
+                setEntry(cached.entry);
+                setError(null);
+            } else {
+                setEntry(null);
+                setError(cached.error);
+            }
+            setLoading(false);
             return;
         }
 
@@ -48,21 +70,26 @@ export const DictionaryTooltip: React.FC<{
         timerRef.current = setTimeout(async () => {
             try {
                 const res = await fetch(
-                    `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
+                    `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cacheKey)}`
                 );
                 if (!res.ok) {
-                    if (res.status === 404) {
-                        setError('No definition found');
-                    } else {
-                        setError('Dictionary unavailable');
-                    }
+                    const msg = res.status === 404 ? 'No definition found' : 'Dictionary unavailable';
+                    lookupCache.set(cacheKey, { type: 'error', error: msg });
+                    setError(msg);
                     setEntry(null);
                 } else {
                     const data: DictionaryEntry[] = await res.json();
-                    setEntry(data[0] ?? null);
-                    setError(null);
+                    const first = data[0] ?? null;
+                    if (first) {
+                        lookupCache.set(cacheKey, { type: 'entry', entry: first });
+                    } else {
+                        lookupCache.set(cacheKey, { type: 'error', error: 'No definition found' });
+                    }
+                    setEntry(first);
+                    setError(first ? null : 'No definition found');
                 }
             } catch {
+                // Don't cache network errors — allow retry
                 setError('Network error');
                 setEntry(null);
             } finally {
