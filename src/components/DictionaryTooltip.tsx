@@ -130,8 +130,6 @@ export const DictionaryTooltip: React.FC<{
 
     if (!visible) return null;
 
-    const hasContent = entry || loading || error;
-
     return (
         <div
             className="dictionary-tooltip"

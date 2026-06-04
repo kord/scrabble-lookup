@@ -19,7 +19,47 @@ export class BiDirectionalDictionary {
         this.reverseWords = new Map();
         this.wordSet = new Set();
         this.wordCount = 0;
-        this.insertWords(wordlist);
+        if (wordlist.length > 0) {
+            this.insertWords(wordlist);
+        }
+    }
+
+    /**
+     * Load words from a compiled Record<length, "word1|word2|..."> format.
+     * Words are assumed pre-sorted — no sort step needed.
+     * Returns `this` for chaining.
+     */
+    loadCompiled(data: Record<number, string>): this {
+        for (const [lenStr, wordStr] of Object.entries(data)) {
+            const len = Number(lenStr);
+            const words = wordStr.split('|');
+
+            if (!this.forwardWords.has(len)) {
+                this.forwardWords.set(len, []);
+                this.reverseWords.set(len, []);
+            }
+
+            const fwdArr = this.forwardWords.get(len)!;
+            const revArr = this.reverseWords.get(len)!;
+
+            for (const word of words) {
+                if (this.wordSet.has(word)) continue; // skip dupes across sources
+                this.wordSet.add(word);
+                fwdArr.push(word);
+                revArr.push(word.split('').reverse().join(''));
+                this.wordCount++;
+            }
+        }
+
+        // Re-sort after merging multiple compiled sources
+        for (const [, arr] of this.forwardWords) {
+            arr.sort();
+        }
+        for (const [, arr] of this.reverseWords) {
+            arr.sort();
+        }
+
+        return this;
     }
 
     insertWords(wordlist: string[]) {
