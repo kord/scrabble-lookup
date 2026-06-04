@@ -23,25 +23,64 @@ A lightweight React + TypeScript app for exploring Scrabble words: find valid pr
 
 ## Dictionary compression
 
-To keep the bundle small, wordlists are compiled at build time using a **common-words + delta** strategy:
+To keep the bundle small, the three raw wordlists (~14 MB of TypeScript arrays) are never shipped directly. Instead, `scripts/build-dicts.mjs` runs as a `prebuild` step and compiles them into a minimal set of chunk files using automated set-theoretic exploration.
 
-1. **`scripts/build-dicts.mjs`** runs as a `prebuild` step and reads the three raw wordlists (SOWPODS, TWL06, CSW22).
-2. It computes the **intersection** of all three — the set of words common to every dictionary — and three **deltas** (words unique to each dictionary).
-3. Each set is **grouped by word length**, sorted alphabetically, and joined into a single pipe-delimited string per length (e.g. `3: "aah|aal|aas|..."`).
-4. Four compact TypeScript files are written to `src/dict/compiled/`:
+### How it works
 
-| File | Contents | Raw size |
-|------|----------|----------|
-| `common.ts` | Words in all 3 dicts | 1.76 MB |
-| `sowpods-delta.ts` | SOWPODS-only words | 946 KB |
-| `twl06-delta.ts` | TWL06-only words | 2 KB |
-| `csw22-delta.ts` | CSW22-only words | 1.06 MB |
+1. **Parse** the three raw word lists (SOWPODS, CSW22, TWL06) into Sets.
+2. **Compute all 7 Venn-diagram atoms** — the non-overlapping regions of the 3-set Venn diagram:
 
-5. At runtime, each dictionary is reconstituted as `common ∪ delta` via `BiDirectionalDictionary.loadCompiled()` — no sorting or deduplication needed since that's done at build time.
+   | Atom | Meaning | Typical size |
+   |------|---------|-------------|
+   | `ABC` | In all 3 dictionaries | ~178k |
+   | `AB` | In SOWPODS & CSW22, not TWL06 | ~89k |
+   | `AC` | In SOWPODS & TWL06, not CSW22 | ~228 |
+   | `BC` | In CSW22 & TWL06, not SOWPODS | ~0 |
+   | `A_` | SOWPODS-only | ~400 |
+   | `B_` | CSW22-only | ~12k |
+   | `C_` | TWL06-only | ~0 |
 
-**Result:** 725,520 raw word instances across three files → 368,594 across four files (a 49% reduction). Combined with gzip, the JS bundle dropped from ~2.0 MB to ~1.43 MB. TWL06 has only 228 words outside the common set, so it adds almost no weight.
+   Each dictionary is just a union of its constituent atoms (e.g. SOWPODS = ABC ∪ AB ∪ AC ∪ A_).
 
-To regenerate the compiled dictionaries manually:
+3. **Enumerate all valid partitions** — every way to group the non-empty atoms into chunk files such that each dictionary can be reconstituted as a union of some subset of chunks.
+
+4. **Gzip-measure each candidate**. For every valid partition, the script serializes grouped word data, gzips it, and sums the sizes. The partition with the smallest total wins.
+
+5. **Write the winning chunk files + a manifest**. The manifest (`src/dict/compiled/manifest.ts`) imports the right chunks and exports the three reconstituted dictionary instances. `scrabbledicts.ts` simply re-exports from the manifest — it never needs to know which partition was chosen.
+
+### Optimal result for 3 dictionaries
+
+The explorer found that keeping each atom as its own file minimizes gzip size:
+
+| Chunk | Atoms | Gzip size |
+|-------|-------|-----------|
+| `chunk-0` | ABC | 605 KB |
+| `chunk-1` | AB | 342 KB |
+| `chunk-2` | AC | 1 KB |
+| `chunk-3` | A_ | 2 KB |
+| `chunk-4` | B_ | 47 KB |
+| **Total** | | **995 KB** |
+
+Runtime reconstitution (from `manifest.ts`):
+
+```
+SOWPODS ← chunks [0, 1, 2, 3]
+CSW22   ← chunks [0, 1, 4]
+TWL06   ← chunks [0, 2]
+```
+
+### Bundle size history
+
+| Strategy | Gzipped JS bundle | Reduction |
+|----------|------------------|-----------|
+| Original (3 full arrays) | ~2.00 MB | — |
+| 4-file common+delta | 1.43 MB | -29% |
+| 5-file with SOWPODS-CSW22 shared | 1.09 MB | -24% |
+| Partition explorer (atom-per-file) | **1.09 MB** | (same optimum) |
+
+The partition explorer converged on the same result as the manual 5-file approach — confirming it's optimal for this data. If dictionary word lists change or a 4th dictionary is added, the explorer automatically finds the new optimum.
+
+To run the explorer manually:
 
 ```powershell
 node scripts/build-dicts.mjs
