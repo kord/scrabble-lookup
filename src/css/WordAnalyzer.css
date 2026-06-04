@@ -821,3 +821,142 @@
     font-size: 0.7rem;
     opacity: 0.6;
 }
+
+/* ==========================================================
+   DICTIONARY TOOLTIP
+   ========================================================== */
+
+.dictionary-tooltip {
+    position: fixed;
+    z-index: 9999;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+    animation: dict-fade-in 0.15s ease-out;
+}
+
+@keyframes dict-fade-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, calc(-100% + 6px));
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -100%);
+    }
+}
+
+.dict-tooltip-inner {
+    background: #1e1e2e;
+    border: 1px solid #3a3a5c;
+    border-radius: 10px;
+    padding: 12px 14px;
+    min-width: 200px;
+    max-width: 320px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    color: #e2e8f0;
+    text-align: left;
+}
+
+.dict-tooltip-arrow {
+    width: 0;
+    height: 0;
+    margin: 0 auto;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 7px solid #3a3a5c;
+}
+
+.dict-word-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #2a2a40;
+}
+
+.dict-word {
+    font-weight: 700;
+    font-size: 15px;
+    color: #ffffff;
+    text-transform: lowercase;
+}
+
+.dict-phonetic {
+    font-size: 12px;
+    color: #8b9bb4;
+}
+
+.dict-meaning {
+    margin-bottom: 6px;
+    text-align: left;
+}
+
+.dict-pos {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #7ab7ff;
+    background: rgba(122, 183, 255, 0.12);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    text-align: left;
+}
+
+.dict-defs {
+    margin: 0;
+    padding-left: 22px;
+    font-size: 12px;
+    color: #cbd5e0;
+    line-height: 1.5;
+    list-style-position: outside;
+    text-align: left;
+}
+
+.dict-defs li {
+    margin-bottom: 3px;
+    padding-left: 2px;
+}
+
+.dict-example {
+    display: block;
+    font-style: italic;
+    color: #8899aa;
+    font-size: 11px;
+    margin-top: 1px;
+}
+
+/* Loading state */
+.dict-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #8899aa;
+    font-size: 12px;
+}
+
+.dict-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #3a3a5c;
+    border-top-color: #7ab7ff;
+    border-radius: 50%;
+    animation: dict-spin 0.6s linear infinite;
+}
+
+@keyframes dict-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.dict-error {
+    color: #f87171;
+    font-size: 12px;
+}
