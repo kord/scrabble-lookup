@@ -32,6 +32,7 @@ A lightweight React + TypeScript app for exploring Scrabble words: find valid pr
 - React (functional components)
 - TypeScript
 - Plain CSS for styling (`src/css` / `public/static/css`)
+- This was written with the substantial assistance of Deepseek and GPT-5 mini)
 
 ## Getting started
 
