@@ -278,6 +278,12 @@ for (let bi = 0; bi < bestPartition.partition.length; bi++) {
 }
 manifestLines.push('');
 
+// Add a machine-parseable mapping comment for validators
+for (const [dict, blocks] of Object.entries(bestPartition.dictBlocks)) {
+    const dictVar = { sowpods: 'SowpodsDictionary', csw22: 'Csw22Dictionary', twl06: 'Twl06Dictionary' }[dict];
+    manifestLines.push(`// DICT_MAP: ${dictVar} ← chunks [${blocks.join(',')}]`);
+}
+
 for (const [dict, blocks] of Object.entries(bestPartition.dictBlocks)) {
     const dictVar = { sowpods: 'SowpodsDictionary', csw22: 'Csw22Dictionary', twl06: 'Twl06Dictionary' }[dict];
     const loads = blocks.map(bi => `CHUNK_${bi}_WORDS`).join(', ');

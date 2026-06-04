@@ -19,11 +19,13 @@
   },
   "scripts": {
     "prebuild": "node scripts/build-dicts.mjs",
+    "postbuild": "node scripts/validate-dicts.mjs",
     "predeploy": "npm run build",
     "deploy": "firebase deploy && git commit -m firebase",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "validate-dicts": "node scripts/validate-dicts.mjs",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
