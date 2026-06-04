@@ -111,7 +111,7 @@ const StatsSummary: React.FC<{
       )}
       {inputLength === 0 && (
         <span className="stat-item hint">
-          Type a word to search — use <code>?</code> for blank tiles
+          Type a word to search
         </span>
       )}
     </div>
@@ -500,7 +500,7 @@ const WordAnalyzer: React.FC = () => {
             type="text"
             value={input}
             onChange={handleInputChange}
-            placeholder="Type a word... use ? for blanks"
+            placeholder={activeTab === 'anagrams' ? "Add some letters... use ? for blanks" : "Type a word..."}
             className="word-input"
             autoFocus
             spellCheck={false}
