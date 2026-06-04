@@ -472,7 +472,7 @@ const WordAnalyzer: React.FC = () => {
     <div className="word-analyzer">
       {/* Header */}
       <div className="analyzer-header">
-        <h1>🔤 Scrabble Lookup</h1>
+        <h1>🔤 Scrabble Helper</h1>
         <p className="subtitle">
           Word affix analyzer &amp; anagram finder
           {blankCount > 0 && (
