@@ -29,3 +29,5 @@ yarn-error.log*
 *.cache
 .firebase/hosting.YnVpbGQ.cache
 /src/dict/compiled
+src/dict/elixir-otp-29.exe
+src/dict/otp_win64_29.0.1.exe
