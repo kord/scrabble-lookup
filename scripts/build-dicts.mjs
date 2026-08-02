@@ -4,15 +4,16 @@
  *
  * This script:
  *   1. Parses raw word arrays from src/dict/{sowpods,twl06,CSW22}.ts
- *   2. Computes all 7 Venn-diagram "atoms" (regions of set overlap)
- *   3. Enumerates all valid ways to group atoms into chunk files
- *   4. Gzip-measures each candidate and picks the smallest
- *   5. Writes the winning chunk files + a manifest.ts
+ *      + src/dict/FINAL-WOW24-Full-Alphabetical.txt
+ *   2. Computes all 15 Venn-diagram "atoms" (regions of 4-set overlap)
+ *   3. Assigns each non-empty atom its own chunk file (1:1 mapping)
+ *   4. Writes chunk files + a manifest.ts
  *
- * Atoms (Venn regions for 3 dictionaries A=SOWPODS, B=CSW22, C=TWL06):
- *   ABC = A ∩ B ∩ C        AB = (A∩B) \ C       AC = (A∩C) \ B
- *   BC  = (B∩C) \ A        A  = A \ (B∪C)       B  = B \ (A∪C)
- *   C   = C \ (A∪B)
+ * Atoms (Venn regions for 4 sets: A=SOWPODS, B=CSW22, C=TWL06, D=WOW24):
+ *   ABCD  ABD  ACD  BCD  ABC  AB  AC  AD  BC  BD  CD  A  B  C  D
+ *
+ * With 4 sets, exhaustive partition enumeration is infeasible
+ * (B(15) ≈ 1.4B), so we use one-chunk-per-atom.
  *
  * Usage:  node scripts/build-dicts.mjs
  */
@@ -46,6 +47,16 @@ function parseWordList(filename) {
     return new Set(words.map(w => w.toLowerCase()));
 }
 
+// ── Parse a plain-text word list (uppercase, one word per line) ──────
+function parseTextWordList(filename) {
+    const raw = readFileSync(join(DICT_SRC, filename), 'utf-8');
+    return new Set(
+        raw.split(/\r?\n/)
+            .map(w => w.trim().toLowerCase())
+            .filter(w => w.length > 0)
+    );
+}
+
 // ── Group a Set of words by length, sort, join ───────────────────────
 function groupByLength(wordSet) {
     const groups = {};
@@ -76,26 +87,6 @@ function serializeChunk(name, groups) {
     ].join('\n');
 }
 
-// ── Generate all set partitions of an array of items ─────────────────
-// Returns an array of partitions, where each partition is an array of blocks.
-function* setPartitions(items) {
-    if (items.length === 0) {
-        yield [];
-        return;
-    }
-    const [first, ...rest] = items;
-    for (const partition of setPartitions(rest)) {
-        // Option 1: first in its own block
-        yield [[first], ...partition];
-        // Option 2: first joins each existing block
-        for (let i = 0; i < partition.length; i++) {
-            const copy = partition.map(b => [...b]);
-            copy[i].push(first);
-            yield copy;
-        }
-    }
-}
-
 // ── Set union ────────────────────────────────────────────────────────
 function union(...sets) {
     const result = new Set();
@@ -112,43 +103,67 @@ console.log('Building compiled dictionaries...\n');
 const A = parseWordList('sowpods.ts');  // SOWPODS
 const B = parseWordList('CSW22.ts');    // CSW22
 const C = parseWordList('twl06.ts');    // TWL06
+const D = parseTextWordList('FINAL-WOW24-Full-Alphabetical.txt'); // WOW24
 
 console.log(`  SOWPODS: ${A.size.toLocaleString()} words`);
 console.log(`  CSW22:   ${B.size.toLocaleString()} words`);
 console.log(`  TWL06:   ${C.size.toLocaleString()} words`);
+console.log(`  WOW24:   ${D.size.toLocaleString()} words`);
 
-// 2. Compute all 7 Venn atoms
-const atoms = {
-    ABC: new Set([...A].filter(w => B.has(w) && C.has(w))),
-    AB: new Set([...A].filter(w => B.has(w) && !C.has(w))),
-    AC: new Set([...A].filter(w => !B.has(w) && C.has(w))),
-    BC: new Set([...B].filter(w => !A.has(w) && C.has(w))),
-    A_: new Set([...A].filter(w => !B.has(w) && !C.has(w))),
-    B_: new Set([...B].filter(w => !A.has(w) && !C.has(w))),
-    C_: new Set([...C].filter(w => !A.has(w) && !B.has(w))),
+// 2. Compute all 15 Venn atoms (non-empty subsets of {A,B,C,D})
+// We use binary mask: bit0=A, bit1=B, bit2=C, bit3=D
+// Atom name is the concatenation of letters whose bits are set.
+function computeAtom(mask, sets) {
+    let result = null;
+    for (let i = 0; i < 4; i++) {
+        const set = sets[i];
+        if (mask & (1 << i)) {
+            // This set must CONTAIN the word
+            result = result === null ? new Set(set) : new Set([...result].filter(w => set.has(w)));
+        } else {
+            // This set must NOT contain the word
+            if (result === null) {
+                // Start with the universal set (union of all)
+                result = union(...sets);
+            }
+            result = new Set([...result].filter(w => !set.has(w)));
+        }
+    }
+    return result || new Set();
+}
+
+const allSets = [A, B, C, D];
+const atoms = {};
+const ATOM_NAMES = [];
+for (let mask = 1; mask < 16; mask++) {
+    const name = ['A', 'B', 'C', 'D'].filter((_, i) => mask & (1 << i)).join('');
+    ATOM_NAMES.push(name);
+    atoms[name] = computeAtom(mask, allSets);
+}
+
+// Dict → which atoms it needs (atoms whose name contains the dict's letter)
+const dictAtomMap = {
+    sowpods: ATOM_NAMES.filter(n => n.includes('A')),
+    csw22: ATOM_NAMES.filter(n => n.includes('B')),
+    twl06: ATOM_NAMES.filter(n => n.includes('C')),
+    wow24: ATOM_NAMES.filter(n => n.includes('D')),
 };
 
-// Dict → which atoms it needs
-const dictAtoms = {
-    sowpods: ['ABC', 'AB', 'AC', 'A_'],
-    csw22: ['ABC', 'AB', 'BC', 'B_'],
-    twl06: ['ABC', 'AC', 'BC', 'C_'],
-};
-
-// Print atom sizes, skip empties
+// Print atom sizes, collect non-empty ones
 const activeAtoms = [];
 console.log('\n  Venn atoms:');
-for (const [name, set] of Object.entries(atoms)) {
-    if (set.size > 0) {
-        console.log(`    ${name}: ${set.size.toLocaleString()} words`);
+for (const name of ATOM_NAMES) {
+    const size = atoms[name].size;
+    if (size > 0) {
+        console.log(`    ${name}: ${size.toLocaleString()} words`);
         activeAtoms.push(name);
     }
 }
 
 // Verify atoms reconstruct correctly
-for (const [dict, needed] of Object.entries(dictAtoms)) {
+for (const [dict, needed] of Object.entries(dictAtomMap)) {
     const recon = union(...needed.map(n => atoms[n]));
-    const orig = { sowpods: A, csw22: B, twl06: C }[dict];
+    const orig = { sowpods: A, csw22: B, twl06: C, wow24: D }[dict];
     if (recon.size !== orig.size) {
         console.error(`  ✗ ${dict} reconstitution FAILED: ${recon.size} vs ${orig.size}`);
         process.exit(1);
@@ -156,140 +171,60 @@ for (const [dict, needed] of Object.entries(dictAtoms)) {
 }
 console.log('  ✓ All dictionaries reconstitute correctly from atoms');
 
-// 3. Pre-group each atom by length
-const atomGrouped = {};
-for (const name of activeAtoms) {
-    atomGrouped[name] = groupByLength(atoms[name]);
-}
-
-// 4. Enumerate partitions and gzip-measure
-console.log('\n  Exploring partition strategies...');
-
-let bestPartition = null;
-let bestSize = Infinity;
-let candidatesChecked = 0;
-
-for (const partition of setPartitions(activeAtoms)) {
-    candidatesChecked++;
-
-    // Check validity: each dictionary must be expressible as a union of some blocks
-    let valid = true;
-    const dictBlocks = {}; // dict → array of block indices
-    for (const [dict, needed] of Object.entries(dictAtoms)) {
-        const neededSet = new Set(needed.filter(n => atoms[n].size > 0));
-        // Each block in the partition covers some atoms. Find blocks that cover needed atoms.
-        const blocks = [];
-        const covered = new Set();
-        for (let bi = 0; bi < partition.length; bi++) {
-            const blockSet = new Set(partition[bi]);
-            // Does this block contain ONLY atoms we need?
-            let allNeeded = true;
-            for (const a of blockSet) {
-                if (!neededSet.has(a)) { allNeeded = false; break; }
-            }
-            if (allNeeded) {
-                blocks.push(bi);
-                for (const a of blockSet) covered.add(a);
-            }
-        }
-        // All needed atoms must be covered
-        for (const n of neededSet) {
-            if (!covered.has(n)) { valid = false; break; }
-        }
-        if (!valid) break;
-        dictBlocks[dict] = blocks;
-    }
-
-    if (!valid) continue;
-
-    // Measure gzip size of this partition
-    let totalGzip = 0;
-    for (let bi = 0; bi < partition.length; bi++) {
-        // Merge grouped data from all atoms in this block
-        const merged = {};
-        for (const atomName of partition[bi]) {
-            const g = atomGrouped[atomName];
-            for (const [len, words] of Object.entries(g)) {
-                if (!merged[len]) merged[len] = [];
-                merged[len].push(words);
-            }
-        }
-        // Sort and re-join (atoms were individually sorted, but merging unsorts)
-        const final = {};
-        for (const len of Object.keys(merged).sort((a, b) => +a - +b)) {
-            const allWords = merged[len].flatMap(s => s.split('|'));
-            allWords.sort();
-            final[len] = allWords.join('|');
-        }
-        const serialized = serializeChunk(`CHUNK_${bi}`, final);
-        totalGzip += gzipSync(serialized).length;
-    }
-
-    if (totalGzip < bestSize) {
-        bestSize = totalGzip;
-        bestPartition = { partition, dictBlocks, totalGzip };
-    }
-}
-
-console.log(`  Checked ${candidatesChecked} partitions, ${bestPartition ? 'found optimal' : 'NONE FOUND'}`);
-console.log(`  Best gzip size: ${(bestSize / 1024).toFixed(1)} KB, ${bestPartition.partition.length} chunks`);
-
-// 5. Write the winning chunk files + manifest
+// 3. Write one chunk per non-empty atom
 mkdirSync(COMPILED_DIR, { recursive: true });
 console.log('');
 
-const chunkNames = [];
-for (let bi = 0; bi < bestPartition.partition.length; bi++) {
-    const chunkName = `chunk-${bi}`;
-    chunkNames.push(chunkName);
+const chunkMapping = {}; // atomName → chunkIndex
+let chunkIndex = 0;
 
-    const merged = {};
-    for (const atomName of bestPartition.partition[bi]) {
-        const g = atomGrouped[atomName];
-        for (const [len, words] of Object.entries(g)) {
-            if (!merged[len]) merged[len] = [];
-            merged[len].push(words);
-        }
-    }
-    const final = {};
-    for (const len of Object.keys(merged).sort((a, b) => +a - +b)) {
-        const allWords = merged[len].flatMap(s => s.split('|'));
-        allWords.sort();
-        final[len] = allWords.join('|');
-    }
-
-    const exportName = `CHUNK_${bi}_WORDS`;
-    const content = serializeChunk(exportName, final);
-    const path = join(COMPILED_DIR, `${chunkName}.ts`);
+for (const name of activeAtoms) {
+    chunkMapping[name] = chunkIndex;
+    const groups = groupByLength(atoms[name]);
+    const exportName = `CHUNK_${chunkIndex}_WORDS`;
+    const content = serializeChunk(exportName, groups);
+    const chunkFile = `chunk-${chunkIndex}.ts`;
+    const path = join(COMPILED_DIR, chunkFile);
     writeFileSync(path, content, 'utf-8');
-    console.log(`  ✓ ${chunkName}.ts  (${bestPartition.partition[bi].join(' + ')} → ${content.length.toLocaleString()} B raw, ${(gzipSync(content).length / 1024).toFixed(1)} KB gzip)`);
+    const gzipSize = gzipSync(content).length;
+    console.log(`  ✓ ${chunkFile}  (atom ${name}: ${atoms[name].size.toLocaleString()} words → ${content.length.toLocaleString()} B raw, ${(gzipSize / 1024).toFixed(1)} KB gzip)`);
+    chunkIndex++;
 }
 
-// 6. Write manifest.ts — tells scrabbledicts.ts how to reconstitute
+// 4. Write manifest.ts
+const dictToChunks = {};
+for (const [dict, neededAtoms] of Object.entries(dictAtomMap)) {
+    dictToChunks[dict] = neededAtoms
+        .filter(n => atoms[n].size > 0)
+        .map(n => chunkMapping[n])
+        .sort((a, b) => a - b);
+}
+
+const dictVarNames = { sowpods: 'SowpodsDictionary', csw22: 'Csw22Dictionary', twl06: 'Twl06Dictionary', wow24: 'Wow24Dictionary' };
+
 const manifestLines = [
     `// Auto-generated by scripts/build-dicts.mjs — DO NOT EDIT`,
-    `// Optimal partition: ${bestPartition.partition.length} chunks, ${(bestSize / 1024).toFixed(1)} KB gzip`,
-    `// Atoms per chunk: ${bestPartition.partition.map((b, i) => `[${i}]: ${b.join('+')}`).join(', ')}`,
+    `// Strategy: one-chunk-per-atom — ${chunkIndex} non-empty atoms, ${chunkIndex} chunks`,
+    `// Atom→chunk: ${activeAtoms.map(a => `${a}→${chunkMapping[a]}`).join(', ')}`,
     '',
     `import { BiDirectionalDictionary } from '../dict';`,
 ];
-for (let bi = 0; bi < bestPartition.partition.length; bi++) {
-    manifestLines.push(`import { CHUNK_${bi}_WORDS } from './chunk-${bi}';`);
+for (let i = 0; i < chunkIndex; i++) {
+    manifestLines.push(`import { CHUNK_${i}_WORDS } from './chunk-${i}';`);
 }
 manifestLines.push('');
 
-// Add a machine-parseable mapping comment for validators
-for (const [dict, blocks] of Object.entries(bestPartition.dictBlocks)) {
-    const dictVar = { sowpods: 'SowpodsDictionary', csw22: 'Csw22Dictionary', twl06: 'Twl06Dictionary' }[dict];
-    manifestLines.push(`// DICT_MAP: ${dictVar} ← chunks [${blocks.join(',')}]`);
+// DICT_MAP comments for validators
+for (const [dict, chunks] of Object.entries(dictToChunks)) {
+    manifestLines.push(`// DICT_MAP: ${dictVarNames[dict]} ← chunks [${chunks.join(',')}]`);
 }
+manifestLines.push('');
 
-for (const [dict, blocks] of Object.entries(bestPartition.dictBlocks)) {
-    const dictVar = { sowpods: 'SowpodsDictionary', csw22: 'Csw22Dictionary', twl06: 'Twl06Dictionary' }[dict];
-    const loads = blocks.map(bi => `CHUNK_${bi}_WORDS`).join(', ');
-    manifestLines.push(`export const ${dictVar} = new BiDirectionalDictionary()`);
-    for (const bi of blocks) {
-        manifestLines.push(`    .loadCompiled(CHUNK_${bi}_WORDS)`);
+for (const [dict, chunks] of Object.entries(dictToChunks)) {
+    const varName = dictVarNames[dict];
+    manifestLines.push(`export const ${varName} = new BiDirectionalDictionary()`);
+    for (const i of chunks) {
+        manifestLines.push(`    .loadCompiled(CHUNK_${i}_WORDS)`);
     }
     manifestLines.push(`;`);
     manifestLines.push('');
@@ -298,7 +233,7 @@ for (const [dict, blocks] of Object.entries(bestPartition.dictBlocks)) {
 const manifestPath = join(COMPILED_DIR, 'manifest.ts');
 writeFileSync(manifestPath, manifestLines.join('\n'), 'utf-8');
 console.log(`\n  ✓ manifest.ts written`);
-console.log(`  SOWPODS ← chunks [${bestPartition.dictBlocks.sowpods}]`);
-console.log(`  CSW22   ← chunks [${bestPartition.dictBlocks.csw22}]`);
-console.log(`  TWL06   ← chunks [${bestPartition.dictBlocks.twl06}]`);
+for (const [dict, chunks] of Object.entries(dictToChunks)) {
+    console.log(`  ${dict.toUpperCase()} ← chunks [${chunks.join(',')}]`);
+}
 console.log('  Done.\n');

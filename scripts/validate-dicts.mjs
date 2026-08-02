@@ -32,6 +32,16 @@ function parseWordList(filename) {
     return new Set(words.map(w => w.toLowerCase()));
 }
 
+// ── Parse a plain-text word list (uppercase, one word per line) ──────
+function parseTextWordList(filename) {
+    const raw = readFileSync(join(DICT_SRC, filename), 'utf-8');
+    return new Set(
+        raw.split(/\r?\n/)
+            .map(w => w.trim().toLowerCase())
+            .filter(w => w.length > 0)
+    );
+}
+
 // ── Parse a compiled chunk TS file into a Set ────────────────────────
 function parseCompiledChunk(filename) {
     const raw = readFileSync(join(DICT_SRC, 'compiled', filename), 'utf-8');
@@ -91,6 +101,7 @@ const originals = {
     sowpods: parseWordList('sowpods.ts'),
     csw22: parseWordList('CSW22.ts'),
     twl06: parseWordList('twl06.ts'),
+    wow24: parseTextWordList('FINAL-WOW24-Full-Alphabetical.txt'),
 };
 
 console.log(`  Originals:`);

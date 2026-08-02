@@ -10,16 +10,17 @@ import {
     SowpodsDictionary,
     Csw22Dictionary,
     Twl06Dictionary,
+    Wow24Dictionary,
 } from './compiled/manifest';
 import type { BiDirectionalDictionary } from './dict';
 
-export { SowpodsDictionary, Csw22Dictionary, Twl06Dictionary };
+export { SowpodsDictionary, Csw22Dictionary, Twl06Dictionary, Wow24Dictionary };
 
 /**
  * Dictionary metadata for the selector UI
  */
 export interface DictionaryInfo {
-    id: 'sowpods' | 'twl06' | 'csw22';
+    id: 'sowpods' | 'twl06' | 'csw22' | 'wow24';
     name: string;
     description: string;
     instance: BiDirectionalDictionary;
@@ -43,6 +44,12 @@ export const AVAILABLE_DICTIONARIES: DictionaryInfo[] = [
         name: 'CSW22',
         description: '2022 Collins Scrabble Words (latest)',
         instance: Csw22Dictionary,
+    },
+    {
+        id: 'wow24',
+        name: 'WOW24',
+        description: 'Words of Wonder 2024 word list',
+        instance: Wow24Dictionary,
     },
 ];
 

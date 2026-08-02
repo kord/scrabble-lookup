@@ -6,7 +6,8 @@ import {
   DictionaryInfo,
   SowpodsDictionary,
   Csw22Dictionary,
-  Twl06Dictionary
+  Twl06Dictionary,
+  Wow24Dictionary
 } from '../dict/scrabbledicts';
 import { AffixChip, AnagramChip } from "./WordResultChip";
 import "../css/WordAnalyzer.css";
@@ -322,6 +323,7 @@ const WordAnalyzer: React.FC = () => {
     sowpods: SowpodsDictionary,
     twl06: Twl06Dictionary,
     csw22: Csw22Dictionary,
+    wow24: Wow24Dictionary,
   }), []);
 
   const activeDictionary = dictionaryMap[activeDictionaryId];
@@ -331,6 +333,7 @@ const WordAnalyzer: React.FC = () => {
     sowpods: SowpodsDictionary.getWordCount(),
     twl06: Twl06Dictionary.getWordCount(),
     csw22: Csw22Dictionary.getWordCount(),
+    wow24: Wow24Dictionary.getWordCount(),
   }), []);
 
   const blankCount = (input.match(/\?/g) || []).length;
